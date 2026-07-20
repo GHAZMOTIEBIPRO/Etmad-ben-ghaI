@@ -23,6 +23,7 @@ const connectorKeysByCatalogName: Record<string, string> = {
   "اعتماد — البيانات المفتوحة": "etimad-public",
   "المركز الوطني للتخصيص — المشاريع والفرص": "ncp-ppp",
   "الشركة السعودية لشراكات المياه — المشاريع المستقبلية": "swpc-future-projects",
+  "PIF Private Sector Hub — Explore Opportunities": "pif-opportunities",
 };
 
 const directLiveSources = new Set([
