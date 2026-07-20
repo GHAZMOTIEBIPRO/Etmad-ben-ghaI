@@ -23,6 +23,7 @@ export function ProjectCard({ project }: { project: ProjectIntelligenceRecord })
             <Link href={`/projects/${project.id}`} className="hover:text-emerald-800">{project.name}</Link>
           </h3>
           <p className="mt-1 text-sm font-bold text-slate-500">{project.ownerName}</p>
+          {project.fitReasons[0] ? <p className="mt-2 text-xs font-bold leading-6 text-emerald-800">لماذا مهم؟ {project.fitReasons[0]}</p> : null}
         </div>
         <div className="text-left">
           <div className="text-xs font-bold text-slate-400">القيمة المعروفة</div>
