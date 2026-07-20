@@ -3,11 +3,21 @@ import { currency, number } from "@/lib/format";
 
 export function StatCards({ stats }: { stats: DashboardStats }) {
   const cards = [
-    ["الفرص والمنافسات المرصودة", number.format(stats.totalTenders)],
+    ["الفرص المرصودة", number.format(stats.totalTenders)],
     ["الترسيات المعلنة", number.format(stats.totalAwards)],
-    ["قيمة الترسيات المتاحة", currency.format(stats.totalAwardValue)],
-    ["الجهات/منصات الطرح", number.format(stats.totalGovernmentEntities)],
-    ["الشركات الفائزة المرصودة", number.format(stats.totalWinningCompanies)],
+    ["قيمة الترسيات", currency.format(stats.totalAwardValue)],
+    ["جهات ومنصات الطرح", number.format(stats.totalGovernmentEntities)],
+    ["الشركات الفائزة", number.format(stats.totalWinningCompanies)],
   ];
-  return <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{cards.map(([label, value]) => <div key={label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="text-sm font-semibold text-slate-500">{label}</div><div className="mt-2 text-2xl font-black tracking-tight text-slate-950">{value}</div></div>)}</div>;
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      {cards.map(([label, value]) => (
+        <div key={label} className="rounded-2xl border border-slate-200/80 bg-white/90 p-4">
+          <div className="text-xs font-bold text-slate-500">{label}</div>
+          <div className="mt-2 text-2xl font-black tracking-tight text-slate-950">{value}</div>
+        </div>
+      ))}
+    </div>
+  );
 }
