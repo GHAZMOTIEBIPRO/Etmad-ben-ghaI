@@ -1,22 +1,35 @@
-# اعتماد بلس — Etimad Plus
+# رادار المقاولات — Construction Radar
 
-منصة عربية سعودية لعرض وتحليل بيانات المنافسات والترسيات الحكومية، مبنية بـ Next.js وTypeScript وTailwind CSS وPostgreSQL/Supabase.
+منصة عربية سعودية لرصد وتحليل المشاريع والفرص والمنافسات والمقاولين وبيانات سوق التشييد من مصادر عامة ورسمية متعددة. مبنية بـ Next.js وTypeScript وTailwind CSS وPostgreSQL/Supabase.
 
-> التطبيق يعمل افتراضيًا ببيانات Mock واقعية لأغراض الـMVP. طبقة `src/lib/data-sources` مستقلة ومهيأة لاستبدال المصدر بواجهة حكومية عامة وموثقة دون إعادة بناء الواجهة.
+## ما الذي تغيّر؟
+
+المشروع لم يعد يعتمد على «اعتماد» كمصدر وحيد. البنية الجديدة تستخدم موصلات مستقلة متعددة، وتعرض بيانات عامة حية عند خلو قاعدة Supabase بدل إظهار شاشة فارغة أو تمرير بيانات تجريبية للمستخدم.
+
+المصدر الحي الافتراضي حاليًا:
+
+- `muqawil-projects`: مشاريع وفرص منصة مقاول العامة.
+
+مصادر إضافية:
+
+- `etimad-public`: موصل Open Data API الرسمي لاعتماد، ويعمل عند توفير `BASE_URL` و`groupId` الرسميين.
+- دليل المقاولين العام في منصة مقاول متاح مباشرة عبر صفحة `/contractors`.
+- صفحة `/sources` تعرض شبكة المصادر الرسمية والعامة وبوابات التسجيل والتأهيل المرصودة.
 
 ## المزايا
 
-- Dashboard عربية RTL ومتجاوبة.
-- بحث شامل مع Debouncing.
-- فلتر «الترسيات فقط» وفلاتر متقدمة.
+- واجهة عربية RTL ومتجاوبة باسم «رادار المقاولات».
+- بيانات مشاريع حية كـ fallback عند عدم إعداد Supabase أو عندما يكون جدول المنافسات فارغًا.
+- بحث شامل مع Debouncing وفلاتر متقدمة.
 - Server-side filtering, sorting, pagination.
-- صفحة لكل منافسة وصفحة لكل شركة/مورد.
-- تحليلات للشركات والجهات والمناطق والأنشطة والفترات الزمنية.
-- API Routes مع Zod validation.
+- صفحة تفاصيل لكل فرصة/منافسة مع رابط المصدر الأصلي.
+- دليل عام للمقاولين والمنشآت المسجلة في منصة مقاول.
+- تحليلات للفرص حسب المنطقة والنشاط، وتحليلات ترسيات عند توفر بياناتها.
+- كتالوج مصادر يوضح: متصل حيًا / عام ومفتوح / يتطلب تسجيلًا / يتطلب إعدادًا رسميًا.
 - PostgreSQL schema مع PK/FK/Unique Constraints/Indexes و`pg_trgm`.
-- مزامنة Idempotent عبر Upsert و`sync_logs`.
+- مزامنة متعددة المصادر، Idempotent، مع `sync_logs` مستقل لكل مصدر.
 - Vercel Cron محمي بـ `CRON_SECRET`.
-- Mock fallback تلقائي عند عدم إعداد Supabase.
+- بيانات Mock معطلة افتراضيًا ولا تعمل إلا عند `ALLOW_MOCK_DATA=true`.
 
 ## التشغيل المحلي
 
@@ -40,14 +53,34 @@ npm run build
 2. شغّل `supabase/migrations/001_initial_schema.sql` في SQL Editor.
 3. اضبط `NEXT_PUBLIC_SUPABASE_URL` و`SUPABASE_SERVICE_ROLE_KEY`.
 4. أنشئ `CRON_SECRET` قويًا.
-5. ابدأ بـ `DATA_SOURCE=mock`.
+5. اترك `DATA_SOURCES=muqawil-projects` أو أضف مصادر أخرى مفصولة بفاصلة.
 6. شغّل المزامنة:
 
 ```bash
 curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/sync
 ```
 
-بعد تعبئة Supabase سيقرأ التطبيق من قاعدة البيانات تلقائيًا بدل Mock Data.
+إذا كانت Supabase غير معدة أو كان جدول `tenders` فارغًا، يستخدم التطبيق المصدر الحي العام مباشرة. بعد نجاح المزامنة، يقرأ التطبيق من قاعدة البيانات.
+
+## إعداد مصادر البيانات
+
+```env
+DATA_SOURCES=muqawil-projects
+MUQAWIL_PROJECTS_MAX_PAGES=5
+MUQAWIL_LIVE_MAX_PAGES=3
+ALLOW_MOCK_DATA=false
+```
+
+لتشغيل اعتماد بجانب مقاول بعد الحصول على الإعدادات الرسمية:
+
+```env
+DATA_SOURCES=muqawil-projects,etimad-public
+ETIMAD_OPEN_DATA_BASE_URL=
+ETIMAD_OPEN_DATA_GROUP_ID=
+ETIMAD_OPEN_DATA_FILE_FORMAT=2
+```
+
+المشروع لا يتجاوز تسجيل الدخول أو CAPTCHA أو Rate Limits ولا يستخدم بيانات خاصة. المصادر التي تتطلب تسجيلًا أو تأهيلًا تظهر في كتالوج المصادر كقنوات فرص، ولا يتم سحب محتواها المحمي آليًا.
 
 ## API
 
@@ -60,17 +93,8 @@ curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/sync
 أمثلة:
 
 ```text
-/api/tenders?q=تشغيل&awarded=true&page=1&pageSize=25
-/api/tenders?region=reg-riyadh&awardMin=10000000&sort=awardAmount&order=desc
-```
-
-## مصدر بيانات اعتماد
-
-لا يقوم المشروع بأي Scraping أو تجاوز تسجيل دخول أو Captcha أو Rate Limits. الموصل `EtimadOpenDataConnector` نقطة تكامل فقط، ويجب ضبط `ETIMAD_PUBLIC_API_URL` بعد التحقق من Endpoint رسمي عام ومسموح وشكل بياناته الموثق.
-
-```env
-DATA_SOURCE=etimad-public
-ETIMAD_PUBLIC_API_URL=https://verified-public-endpoint.example
+/api/tenders?q=تشييد&page=1&pageSize=25
+/api/tenders?region=region-id&status=open&sort=publicationDate&order=desc
 ```
 
 ## النشر على Vercel
@@ -78,14 +102,14 @@ ETIMAD_PUBLIC_API_URL=https://verified-public-endpoint.example
 - اربط المستودع بمشروع Vercel.
 - أضف متغيرات البيئة الموجودة في `.env.example`.
 - نفّذ Deployment.
-- `vercel.json` يشغّل `/api/cron/sync` يوميًا.
+- `vercel.json` يشغّل `/api/cron/sync` دوريًا حسب الإعداد الحالي.
 
-إذا لم تُضبط Supabase فالموقع يبقى عاملًا على Mock Data بدل التعطل.
-
-## الأمان
+## الأمان وجودة البيانات
 
 - Service Role لا يصل إلى Client Components.
 - الوصول إلى Supabase يتم Server-side.
 - RLS مفعّل ولا توجد سياسات عامة افتراضيًا.
 - Cron محمي بـ Bearer secret.
 - Query Parameters مقيدة ومتحقق منها بـ Zod.
+- كل سجل حي يحتفظ بـ `sourceUrl` للعودة إلى المصدر الأصلي.
+- لا يتم تقديم بيانات Mock على أنها بيانات سوق حقيقية.
