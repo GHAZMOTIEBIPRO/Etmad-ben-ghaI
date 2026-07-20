@@ -52,6 +52,11 @@ function asIso(value: unknown): string {
   return Number.isNaN(date.getTime()) ? new Date(0).toISOString() : date.toISOString();
 }
 
+function stringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String).filter(Boolean).slice(0, 6);
+  return [];
+}
+
 function mapProjectRow(row: Record<string, unknown>): ProjectIntelligenceRecord {
   const stage = String(row.stage ?? "planning") as ProjectStage;
   const score = Number(row.fit_score ?? 0);
@@ -75,6 +80,7 @@ function mapProjectRow(row: Record<string, unknown>): ProjectIntelligenceRecord 
     opportunities: [],
     fitScore: score,
     fitLabel: fitLabel(score),
+    fitReasons: stringArray(row.fit_score_breakdown),
     confidence: Number(row.confidence ?? 0),
   };
 }
