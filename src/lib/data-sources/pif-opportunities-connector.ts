@@ -1,24 +1,13 @@
 import type { DataSourceConnector } from "@/lib/data-sources/types";
+import { fetchWithPolicy } from "@/lib/http/fetch-with-policy";
 import type { Tender } from "@/lib/types";
 
 const BASE_URL = "https://www.pif.gov.sa";
 const PAGES = [
-  {
-    url: `${BASE_URL}/en/private-sector-hub/explore-opportunities/urban-development-and-livability/`,
-    label: "التطوير العمراني والتنمية الحضرية",
-  },
-  {
-    url: `${BASE_URL}/en/private-sector-hub/explore-opportunities/tourism-travel-and-entertainment/`,
-    label: "السياحة والسفر والترفيه",
-  },
-  {
-    url: `${BASE_URL}/en/private-sector-hub/explore-opportunities/industrials-and-logistics/`,
-    label: "الصناعة والخدمات اللوجستية",
-  },
-  {
-    url: `${BASE_URL}/en/private-sector-hub/explore-opportunities/clean-energy-water-and-renewables-infrastructure/`,
-    label: "الطاقة والمياه والبنية التحتية",
-  },
+  { url: `${BASE_URL}/en/private-sector-hub/explore-opportunities/urban-development-and-livability/`, label: "التطوير العمراني والتنمية الحضرية" },
+  { url: `${BASE_URL}/en/private-sector-hub/explore-opportunities/tourism-travel-and-entertainment/`, label: "السياحة والسفر والترفيه" },
+  { url: `${BASE_URL}/en/private-sector-hub/explore-opportunities/industrials-and-logistics/`, label: "الصناعة والخدمات اللوجستية" },
+  { url: `${BASE_URL}/en/private-sector-hub/explore-opportunities/clean-energy-water-and-renewables-infrastructure/`, label: "الطاقة والمياه والبنية التحتية" },
 ];
 
 function stableHash(input: string): string {
@@ -42,13 +31,7 @@ function decodeHtml(value: string): string {
 }
 
 function textFromHtml(value: string): string {
-  return decodeHtml(
-    value
-      .replace(/<script[\s\S]*?<\/script>/gi, " ")
-      .replace(/<style[\s\S]*?<\/style>/gi, " ")
-      .replace(/<br\s*\/?>/gi, "\n")
-      .replace(/<[^>]+>/g, " "),
-  )
+  return decodeHtml(value.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, " "))
     .replace(/[\t\r]+/g, " ")
     .replace(/ +/g, " ")
     .replace(/\n\s+/g, "\n")
@@ -63,10 +46,8 @@ function isConstructionRelevant(text: string): boolean {
 function regionFromText(text: string): string {
   const rules: Array<[RegExp, string]> = [
     [/Riyadh|الرياض/i, "الرياض"],
-    [/Jeddah|جدة/i, "مكة المكرمة"],
-    [/Makkah|Mecca|مكة/i, "مكة المكرمة"],
-    [/Madinah|Medina|المدينة/i, "المدينة المنورة"],
-    [/AlUla|Al-Ula|العلا/i, "المدينة المنورة"],
+    [/Jeddah|جدة|Makkah|Mecca|مكة/i, "مكة المكرمة"],
+    [/Madinah|Medina|المدينة|AlUla|Al-Ula|العلا/i, "المدينة المنورة"],
     [/Soudah|Aseer|Asir|السودة|عسير/i, "عسير"],
     [/Hail|حائل/i, "حائل"],
     [/Eastern|Dammam|الشرقية|الدمام/i, "المنطقة الشرقية"],
@@ -150,21 +131,24 @@ export class PifOpportunitiesConnector implements DataSourceConnector {
   readonly key = "pif-opportunities";
   readonly name = "PIF — فرص المشاريع وسلاسل القيمة";
   readonly isLive = true;
+  readonly parserVersion = "2.0.0";
 
   async fetchTenders(since?: string): Promise<Tender[]> {
     const records = new Map<string, Tender>();
     for (const page of PAGES) {
-      const response = await fetch(page.url, {
-        headers: {
-          Accept: "text/html,application/xhtml+xml",
-          "User-Agent": "ConstructionRadar/1.0 (+public-data-indexer)",
-        },
-        next: { revalidate: 1800 },
-      });
-      if (!response.ok) continue;
-      for (const tender of parsePage(await response.text(), page.url, page.label)) {
-        if (since && tender.publicationDate < since.slice(0, 10)) continue;
-        records.set(tender.sourceExternalId, tender);
+      try {
+        const fetched = await fetchWithPolicy(page.url, {
+          headers: { Accept: "text/html,application/xhtml+xml" },
+          retries: 3,
+          minIntervalMs: 900,
+          timeoutMs: 25_000,
+        });
+        for (const tender of parsePage(fetched.text(), page.url, page.label)) {
+          if (since && tender.publicationDate < since.slice(0, 10)) continue;
+          records.set(tender.sourceExternalId, tender);
+        }
+      } catch (error) {
+        console.error(`PIF page sync failed for ${page.url}`, error);
       }
     }
     return [...records.values()].slice(0, 250);
