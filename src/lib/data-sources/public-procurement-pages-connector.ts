@@ -63,6 +63,16 @@ const SOURCE_CONFIGS: SourceConfig[] = [
     sector: "منافسات وخطط مشتريات حكومية",
     minYear: 2026,
   },
+  {
+    key: "mot-current-purchasing-plan",
+    name: "وزارة النقل والخدمات اللوجستية — خطة المشتريات الحالية",
+    url: "https://mot.gov.sa/ar/current-purchasing-plans",
+    entityName: "وزارة النقل والخدمات اللوجستية",
+    entitySlug: "mot-procurement",
+    defaultRegion: "المملكة العربية السعودية",
+    sector: "مشاريع نقل وبنية تحتية ومشتريات حكومية",
+    minYear: 2025,
+  },
 ];
 
 function stableHash(input: string): string {
