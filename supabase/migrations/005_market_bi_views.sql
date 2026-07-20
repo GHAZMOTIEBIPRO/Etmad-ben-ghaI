@@ -1,3 +1,21 @@
+create or replace view public.project_search_view as
+select
+  p.*,
+  coalesce(p.estimated_value, p.award_value, 0)::numeric as known_value,
+  coalesce(s.source_count, 0)::integer as source_count,
+  coalesce(o.opportunity_count, 0)::integer as opportunity_count
+from public.projects p
+left join (
+  select project_id, count(*) as source_count
+  from public.project_sources
+  group by project_id
+) s on s.project_id = p.id
+left join (
+  select project_id, count(*) as opportunity_count
+  from public.project_opportunities
+  group by project_id
+) o on o.project_id = p.id;
+
 create or replace view public.market_metrics_view as
 select
   count(*)::bigint as total_projects,
