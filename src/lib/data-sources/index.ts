@@ -5,6 +5,7 @@ import { MockDataConnector } from "@/lib/data-sources/mock-connector";
 import { MuqawilProjectsConnector } from "@/lib/data-sources/muqawil-projects-connector";
 import { NcpPppConnector } from "@/lib/data-sources/ncp-ppp-connector";
 import { PifOpportunitiesConnector } from "@/lib/data-sources/pif-opportunities-connector";
+import { PublicProcurementPagesConnector } from "@/lib/data-sources/public-procurement-pages-connector";
 import { SwpcFutureProjectsConnector } from "@/lib/data-sources/swpc-future-projects-connector";
 
 function etimadConfigured(): boolean {
@@ -23,6 +24,7 @@ export function getDataConnectors(): DataSourceConnector[] {
     "swpc-future-projects",
     "pif-opportunities",
     "furas-investment",
+    "public-procurement-pages",
     ...configuredKeys,
   ])];
   const connectors: DataSourceConnector[] = [];
@@ -33,6 +35,7 @@ export function getDataConnectors(): DataSourceConnector[] {
     if (key === "swpc-future-projects") connectors.push(new SwpcFutureProjectsConnector());
     if (key === "pif-opportunities") connectors.push(new PifOpportunitiesConnector());
     if (key === "furas-investment") connectors.push(new FurasInvestmentConnector());
+    if (key === "public-procurement-pages") connectors.push(new PublicProcurementPagesConnector());
     if (key === "etimad-public" && etimadConfigured()) connectors.push(new EtimadOpenDataConnector());
     if (key === "mock" && process.env.ALLOW_MOCK_DATA === "true") connectors.push(new MockDataConnector());
   }
