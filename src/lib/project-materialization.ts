@@ -110,6 +110,19 @@ function eventRowsForProject(project: ProjectIntelligenceRecord, projectId: stri
   });
 }
 
+async function rebuildProjectEvents(supabase: SupabaseClient, resolvedProjects: ResolvedProject[]): Promise<void> {
+  const projectIds = [...new Set(resolvedProjects.map(({ resolvedId }) => resolvedId))];
+  const deleteChunkSize = 100;
+  for (let index = 0; index < projectIds.length; index += deleteChunkSize) {
+    const ids = projectIds.slice(index, index + deleteChunkSize);
+    const deletion = await supabase.from("project_events").delete().in("project_id", ids);
+    if (deletion.error) throw deletion.error;
+  }
+
+  const events = resolvedProjects.flatMap(({ project, resolvedId }) => eventRowsForProject(project, resolvedId));
+  if (events.length) await chunkedUpsert(supabase, "project_events", events, { chunkSize: 500 });
+}
+
 export async function syncProjectIntelligence(supabase: SupabaseClient): Promise<SyncResult> {
   const result: SyncResult = { source: "project-intelligence", fetched: 0, upserted: 0, skipped: 0, errors: [] };
   const startedAt = new Date().toISOString();
@@ -215,13 +228,7 @@ export async function syncProjectIntelligence(supabase: SupabaseClient): Promise
       })));
       if (opportunityRows.length) await chunkedUpsert(supabase, "project_opportunities", opportunityRows, { onConflict: "project_id,opportunity_external_id", chunkSize: 500 });
 
-      for (const { project, resolvedId } of resolvedProjects) {
-        const deletion = await supabase.from("project_events").delete().eq("project_id", resolvedId);
-        if (deletion.error) throw deletion.error;
-        const events = eventRowsForProject(project, resolvedId);
-        if (events.length) await chunkedUpsert(supabase, "project_events", events, { chunkSize: 500 });
-      }
-
+      await rebuildProjectEvents(supabase, resolvedProjects);
       result.upserted = resolvedProjects.length;
     }
 
