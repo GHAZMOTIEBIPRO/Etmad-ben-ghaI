@@ -6,6 +6,7 @@ import { deduplicateOpportunities } from "@/lib/deduplicate-opportunities";
 import { syncFreePublicDatasetCatalogs } from "@/lib/free-public-datasets";
 import { syncRiyadhMunicipalityOpenData } from "@/lib/riyadh-free-data";
 import { syncOfficialProcurementFiles } from "@/lib/official-procurement-file-sync";
+import { syncProjectIntelligence } from "@/lib/project-materialization";
 
 export async function runSync(): Promise<SyncBatchResult> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -26,6 +27,11 @@ export async function runSync(): Promise<SyncBatchResult> {
   results.push(...await syncFreePublicDatasetCatalogs(supabase));
   results.push(await syncRiyadhMunicipalityOpenData(supabase));
   results.push(await syncOfficialProcurementFiles(supabase));
+
+  // Rebuild the normalized project layer after all opportunity sources have finished.
+  // If migration 003 is not available yet this step exits gracefully and the UI continues
+  // to derive projects on demand from the synchronized opportunity records.
+  results.push(await syncProjectIntelligence(supabase));
 
   const completedAt = new Date().toISOString();
   return {

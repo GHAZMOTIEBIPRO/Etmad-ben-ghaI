@@ -1,10 +1,12 @@
 import Link from "next/link";
 
 const navItems = [
-  ["/", "الفرص"],
-  ["/data", "البيانات المفتوحة"],
+  ["/", "السوق"],
+  ["/projects", "المشاريع"],
+  ["/tenders", "المنافسات"],
+  ["/analytics", "الترسيات والتحليلات"],
   ["/contractors", "المقاولون"],
-  ["/analytics", "التحليلات"],
+  ["/data", "البيانات"],
   ["/sources", "المصادر"],
 ] as const;
 
@@ -19,8 +21,8 @@ export function Header() {
             <span className="h-1.5 w-1.5 rounded-full bg-white" />
           </span>
           <div className="min-w-0">
-            <div className="truncate text-base font-black text-slate-950 sm:text-lg">رادار المقاولات</div>
-            <div className="truncate text-[11px] font-bold tracking-wide text-emerald-700">Construction Intelligence</div>
+            <div className="truncate text-base font-black text-slate-950 sm:text-lg">رادار المشاريع السعودي</div>
+            <div className="truncate text-[11px] font-bold tracking-wide text-emerald-700">Saudi Projects Intelligence</div>
           </div>
         </Link>
 
