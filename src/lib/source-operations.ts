@@ -28,6 +28,42 @@ const extraOperationalSources: SourceCatalogItem[] = [
     url: "https://furas.momah.gov.sa/en/opportunities-listing/Investment",
     description: "قائمة عامة للفرص الاستثمارية الحكومية والبلدية. متصلة بالرادار لالتقاط الحقول الظاهرة للعامة دون الدخول إلى حساب المستثمر أو شراء كراسة الشروط.",
   },
+  {
+    name: "صفحات المنافسات والمشتريات الحكومية المجانية",
+    category: "منافسات وخطط مشتريات حكومية",
+    access: "live",
+    priority: "high",
+    signals: ["بلدي", "هيئة المواصفات", "وزارة الصحة", "هيئة الزكاة والضريبة والجمارك", "الهيئة العامة للعقار", "خطط مشتريات", "مشاريع 2026"],
+    url: "https://zatca.gov.sa/ar/MediaCenter/Elan/Pages/Procurement-and-Tenders-for-the-Fiscal-Year-2026.aspx",
+    description: "موصل مجاني يقرأ الجداول المنشورة للعامة مباشرة من صفحات الجهات الحكومية، ويجمع المنافسات الحالية وخطط الأعمال والمشتريات دون استخدام API مدفوع.",
+  },
+  {
+    name: "بلدي — كتالوج البيانات المفتوحة المجاني",
+    category: "بيانات حكومية مفتوحة",
+    access: "live",
+    priority: "high",
+    signals: ["API مجاني", "رخص", "تصنيف مقاولين", "طرق", "جسور", "أراض", "ملفات قابلة للتحميل"],
+    url: "https://apiservices.balady.gov.sa/v1/momrah-services/open-data?items_per_page=All",
+    description: "مزامنة مجانية لجميع مجموعات البيانات المفتوحة المتاحة عبر API بلدي، مع حفظ روابط الملفات والبيانات الوصفية في جدول مستقل عن المنافسات.",
+  },
+  {
+    name: "البوابة الوطنية للبيانات المفتوحة — بيانات مجانية",
+    category: "بيانات حكومية مفتوحة",
+    access: "live",
+    priority: "high",
+    signals: ["API مجاني", "CSV", "XLS", "JSON", "منافسات", "مقاولات", "رخص بناء", "بنية تحتية"],
+    url: "https://open.data.gov.sa/",
+    description: "موصل بحث مجاني للبوابة الوطنية للبيانات المفتوحة يلتقط مجموعات البيانات المرتبطة بالمقاولات والمنافسات والبناء والإسكان والعقار والبنية التحتية ويخزن بياناتها الوصفية وروابط الموارد المتاحة.",
+  },
+  {
+    name: "أمانة الرياض — البيانات المفتوحة للمنافسات والعقود",
+    category: "بيانات الرياض المفتوحة",
+    access: "live",
+    priority: "high",
+    signals: ["منافسات استثمارية", "عقود استثمارية", "CSV", "XLSX", "JSON", "XML", "الرياض"],
+    url: "https://www.alriyadh.gov.sa/ar/data-sets/competitions",
+    description: "يرصد تلقائيًا مجموعات بيانات أمانة الرياض للمنافسات والعقود الاستثمارية لعامي 2025 و2026 ويحفظ روابط ملفات CSV/XLSX/JSON/XML المنشورة للعامة.",
+  },
 ];
 
 const operationalCatalog = [
@@ -42,7 +78,13 @@ const connectorKeysByCatalogName: Record<string, string> = {
   "الشركة السعودية لشراكات المياه — المشاريع المستقبلية": "swpc-future-projects",
   "PIF Private Sector Hub — Explore Opportunities": "pif-opportunities",
   "فرص — المنافسات والفرص الاستثمارية": "furas-investment",
+  "صفحات المنافسات والمشتريات الحكومية المجانية": "public-procurement-pages",
+  "بلدي — كتالوج البيانات المفتوحة المجاني": "balady-open-data",
+  "البوابة الوطنية للبيانات المفتوحة — بيانات مجانية": "saudi-open-data",
+  "أمانة الرياض — البيانات المفتوحة للمنافسات والعقود": "riyadh-municipality-open-data",
 };
+
+const datasetSourceKeys = new Set(["balady-open-data", "saudi-open-data", "riyadh-municipality-open-data"]);
 
 const directLiveSources = new Set([
   "منصة مقاول — دليل المقاولين",
@@ -99,7 +141,7 @@ export const getSourceOperations = cache(async (): Promise<SourceOperation[]> =>
       supabase.from("sync_logs")
         .select("data_source_id,status,started_at,completed_at,fetched_count,upserted_count,error_count,error_message")
         .order("started_at", { ascending: false })
-        .limit(250),
+        .limit(500),
     ]);
 
     if (sourceError || logsError) return operationalCatalog.map(emptyOperation);
@@ -116,10 +158,18 @@ export const getSourceOperations = cache(async (): Promise<SourceOperation[]> =>
       }
     }
 
-    const counts = new Map<string, number>();
+    const countsBySourceId = new Map<string, number>();
+    const datasetCountsByKey = new Map<string, number>();
+
     await Promise.all((sourceRows ?? []).map(async (row) => {
+      const sourceKey = String(row.key);
+      if (datasetSourceKeys.has(sourceKey)) {
+        const { count } = await supabase.from("public_datasets").select("id", { count: "exact", head: true }).eq("source_key", sourceKey);
+        datasetCountsByKey.set(sourceKey, count ?? 0);
+        return;
+      }
       const { count } = await supabase.from("tenders").select("id", { count: "exact", head: true }).eq("data_source_id", row.id);
-      counts.set(String(row.id), count ?? 0);
+      countsBySourceId.set(String(row.id), count ?? 0);
     }));
 
     return operationalCatalog.map((source) => {
@@ -130,7 +180,10 @@ export const getSourceOperations = cache(async (): Promise<SourceOperation[]> =>
 
       const sourceId = String(sourceRow.id);
       const latest = latestBySourceId.get(sourceId);
-      if (!latest) return { ...base, recordCount: counts.get(sourceId) ?? 0 };
+      const recordCount = datasetSourceKeys.has(base.connectorKey)
+        ? datasetCountsByKey.get(base.connectorKey) ?? 0
+        : countsBySourceId.get(sourceId) ?? 0;
+      if (!latest) return { ...base, recordCount };
 
       const rawStatus = String(latest.status ?? "");
       const operationalState: OperationalState = rawStatus === "success"
@@ -152,7 +205,7 @@ export const getSourceOperations = cache(async (): Promise<SourceOperation[]> =>
         fetchedCount: latest.fetched_count == null ? null : Number(latest.fetched_count),
         upsertedCount: latest.upserted_count == null ? null : Number(latest.upserted_count),
         errorCount: latest.error_count == null ? null : Number(latest.error_count),
-        recordCount: counts.get(sourceId) ?? 0,
+        recordCount,
         errorMessage: latest.error_message ? String(latest.error_message) : null,
       };
     });

@@ -2,6 +2,7 @@ import Link from "next/link";
 
 const navItems = [
   ["/", "الفرص"],
+  ["/data", "البيانات المفتوحة"],
   ["/contractors", "المقاولون"],
   ["/analytics", "التحليلات"],
   ["/sources", "المصادر"],
