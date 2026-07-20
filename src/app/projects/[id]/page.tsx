@@ -2,13 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { currency, formatDate, statusLabel } from "@/lib/format";
-import { getProjectById } from "@/lib/project-intelligence";
+import { getProjectEvents } from "@/lib/project-events-repository";
+import { getProject360 } from "@/lib/project-repository";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 120;
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
-  const project = await getProjectById(id);
+  const project = await getProject360(id);
   return { title: project ? `${project.name} — ملف المشروع` : "المشروع" };
 }
 
@@ -16,9 +17,21 @@ function valueOrDash(value: number | null): string {
   return value ? currency.format(value) : "غير معلنة";
 }
 
+function eventLabel(type: string): string {
+  const labels: Record<string, string> = {
+    opportunity_published: "طرح فرصة",
+    opportunity_seen: "رصد فرصة",
+    award: "ترسية",
+    qualification: "تأهيل",
+    design: "تصميم",
+    construction: "تنفيذ",
+  };
+  return labels[type] ?? "تحديث";
+}
+
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const project = await getProjectById(id);
+  const [project, events] = await Promise.all([getProject360(id), getProjectEvents(id)]);
   if (!project) notFound();
 
   const stageSteps = ["تخطيط", "تصميم", "تأهيل", "طرح ومنافسة", "تمت الترسية", "تحت التنفيذ", "تشغيل وصيانة"];
@@ -81,10 +94,29 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       <section className="mt-6 grid gap-5 lg:grid-cols-[1fr_0.85fr]">
         <div className="space-y-5">
           <section className="surface-card rounded-2xl p-6">
+            <div className="text-xs font-black text-emerald-700">الخط الزمني</div>
+            <h2 className="mt-1 text-xl font-black">أهم الأحداث المرصودة للمشروع</h2>
+            <div className="mt-5 space-y-3">
+              {events.length ? events.slice(0, 20).map((event) => (
+                <article key={event.id} className="flex gap-4 rounded-2xl border border-slate-200 p-4">
+                  <div className="mt-1 h-3 w-3 shrink-0 rounded-full bg-emerald-700" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs font-black text-emerald-700">{eventLabel(event.type)}</span>
+                      <span className="text-xs font-bold text-slate-400">{event.date ? formatDate(event.date.slice(0, 10)) : "—"}</span>
+                    </div>
+                    {event.sourceUrl ? <a href={event.sourceUrl} target="_blank" rel="noreferrer" className="mt-1 block font-black leading-7 text-slate-950 hover:text-emerald-800">{event.title} ↗</a> : <div className="mt-1 font-black leading-7 text-slate-950">{event.title}</div>}
+                  </div>
+                </article>
+              )) : <div className="rounded-xl bg-slate-50 p-4 text-sm font-bold text-slate-500">لا توجد أحداث زمنية كافية لهذا المشروع حتى الآن.</div>}
+            </div>
+          </section>
+
+          <section className="surface-card rounded-2xl p-6">
             <div className="text-xs font-black text-emerald-700">الفرص والعقود المرتبطة</div>
             <h2 className="mt-1 text-xl font-black">سجل النشاط التعاقدي</h2>
             <div className="mt-5 space-y-3">
-              {project.opportunities.map((opportunity) => (
+              {project.opportunities.length ? project.opportunities.map((opportunity) => (
                 <article key={opportunity.id} className="rounded-2xl border border-slate-200 p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -99,7 +131,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
                     <span>{opportunity.award ? `ترسية: ${currency.format(opportunity.award.amount)}` : "لا توجد ترسية معلنة"}</span>
                   </div>
                 </article>
-              ))}
+              )) : <div className="rounded-xl bg-slate-50 p-4 text-sm font-bold text-slate-500">لا توجد منافسات مرتبطة محفوظة لهذا المشروع حتى الآن.</div>}
             </div>
           </section>
 
@@ -107,12 +139,12 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
             <div className="text-xs font-black text-emerald-700">الأطراف</div>
             <h2 className="mt-1 text-xl font-black">من يقف خلف المشروع؟</h2>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              {project.parties.map((party) => (
+              {project.parties.length ? project.parties.map((party) => (
                 <div key={`${party.role}:${party.name}`} className="rounded-2xl bg-slate-50 p-4">
-                  <div className="text-xs font-black text-slate-400">{party.role === "owner" ? "المالك / الجهة" : party.role === "contractor" ? "المقاول / الفائز" : "المورد"}</div>
+                  <div className="text-xs font-black text-slate-400">{party.role === "owner" ? "المالك / الجهة" : party.role === "contractor" ? "المقاول / الفائز" : "المورد / طرف مرتبط"}</div>
                   <div className="mt-2 font-black text-slate-900">{party.name}</div>
                 </div>
-              ))}
+              )) : <div className="rounded-xl bg-slate-50 p-4 text-sm font-bold text-slate-500">لم يتم رصد أطراف إضافية غير الجهة المالكة.</div>}
             </div>
           </section>
         </div>

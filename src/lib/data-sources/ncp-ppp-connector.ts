@@ -1,4 +1,5 @@
 import type { DataSourceConnector } from "@/lib/data-sources/types";
+import { fetchWithPolicy } from "@/lib/http/fetch-with-policy";
 import type { Tender } from "@/lib/types";
 
 const BASE_URL = "https://www.ncp.gov.sa";
@@ -54,10 +55,8 @@ function parseDate(text: string): string {
 function regionFromTitle(title: string): string {
   const rules: Array<[RegExp, string]> = [
     [/Riyadh|الرياض/i, "الرياض"],
-    [/Makkah|Mecca|مكة/i, "مكة المكرمة"],
+    [/Makkah|Mecca|مكة|Jeddah|جدة|Taif|الطائف/i, "مكة المكرمة"],
     [/Madinah|Medina|المدينة/i, "المدينة المنورة"],
-    [/Jeddah|جدة/i, "مكة المكرمة"],
-    [/Taif|الطائف/i, "مكة المكرمة"],
     [/Eastern|Dammam|الشرقية|الدمام/i, "المنطقة الشرقية"],
   ];
   return rules.find(([pattern]) => pattern.test(title))?.[1] ?? "المملكة العربية السعودية";
@@ -123,21 +122,23 @@ function parseOpportunities(html: string): Tender[] {
     });
   }
 
-  return [...records.values()].slice(0, 40);
+  return [...records.values()].slice(0, 60);
 }
 
 export class NcpPppConnector implements DataSourceConnector {
   readonly key = "ncp-ppp";
   readonly name = "المركز الوطني للتخصيص — فرص PPP";
   readonly isLive = true;
+  readonly parserVersion = "2.0.0";
 
   async fetchTenders(since?: string): Promise<Tender[]> {
-    const response = await fetch(HOME_URL, {
-      headers: { Accept: "text/html,application/xhtml+xml", "User-Agent": "ConstructionRadar/1.0 (+public-data-indexer)" },
-      next: { revalidate: 1800 },
+    const fetched = await fetchWithPolicy(HOME_URL, {
+      headers: { Accept: "text/html,application/xhtml+xml" },
+      retries: 3,
+      minIntervalMs: 900,
+      timeoutMs: 25_000,
     });
-    if (!response.ok) throw new Error(`NCP public opportunities request failed (${response.status})`);
-    const rows = parseOpportunities(await response.text());
+    const rows = parseOpportunities(fetched.text());
     return since ? rows.filter((row) => row.publicationDate >= since.slice(0, 10)) : rows;
   }
 }

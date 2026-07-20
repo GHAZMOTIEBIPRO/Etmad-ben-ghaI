@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { chunkedUpsert } from "@/lib/db/chunked-upsert";
 import type { SyncResult } from "@/lib/data-sources/types";
+import { fetchWithPolicy } from "@/lib/http/fetch-with-policy";
 
-const USER_AGENT = "ConstructionRadar/1.0 (+public-data-indexer)";
 const BALADY_API_URL = "https://apiservices.balady.gov.sa/v1/momrah-services/open-data?items_per_page=All";
 const SAUDI_OPEN_DATA_API = "https://open.data.gov.sa/data/api/datasets";
 
@@ -101,13 +102,14 @@ function dateOrNull(value: string): string | null {
 }
 
 async function fetchBaladyDatasets(): Promise<PublicDatasetRecord[]> {
-  const response = await fetch(BALADY_API_URL, {
-    headers: { Accept: "application/json", "User-Agent": USER_AGENT },
-    next: { revalidate: 21600 },
+  const fetched = await fetchWithPolicy(BALADY_API_URL, {
+    headers: { Accept: "application/json" },
+    retries: 3,
+    minIntervalMs: 750,
+    timeoutMs: 30_000,
+    maxResponseBytes: 30 * 1024 * 1024,
   });
-  if (!response.ok) throw new Error(`Balady open data request failed (${response.status})`);
-
-  const payload = await response.json() as JsonObject;
+  const payload = fetched.json<JsonObject>();
   const data = asObject(payload.data);
   const result = asObject(data?.result);
   const rows = Array.isArray(result?.rows) ? result.rows : [];
@@ -171,17 +173,18 @@ async function fetchNationalSearch(term: string): Promise<PublicDatasetRecord[]>
   for (const parameter of parameterNames) {
     try {
       const url = `${SAUDI_OPEN_DATA_API}?version=-1&${parameter}=${encodeURIComponent(term)}`;
-      const response = await fetch(url, {
-        headers: { Accept: "application/json", "User-Agent": USER_AGENT },
-        next: { revalidate: 21600 },
+      const fetched = await fetchWithPolicy(url, {
+        headers: { Accept: "application/json" },
+        retries: 2,
+        minIntervalMs: 700,
+        timeoutMs: 25_000,
       });
-      if (!response.ok) continue;
-      const payload = await response.json() as unknown;
+      const payload = fetched.json<unknown>();
       const arrays = collectObjectArrays(payload);
       const rows = arrays.flat().map(normalizeNationalDataset).filter((item): item is PublicDatasetRecord => Boolean(item));
       if (rows.length) return rows;
     } catch {
-      // Try the next documented/common search parameter shape.
+      // Try the next common search parameter shape without bypassing access controls.
     }
   }
 
@@ -226,35 +229,31 @@ async function syncCatalog(
   try {
     const rows = await fetcher();
     result.fetched = rows.length;
-
-    for (const row of rows) {
-      const upsert = await supabase.from("public_datasets").upsert({
-        source_key: row.sourceKey,
-        external_id: row.externalId,
-        title: row.title,
-        description: row.description,
-        organization: row.organization || null,
-        category: row.category || null,
-        format: row.format || null,
-        dataset_url: row.datasetUrl || null,
-        resource_url: row.resourceUrl || null,
-        source_updated_at: row.sourceUpdatedAt,
-        metadata: row.metadata,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: "source_key,external_id" });
-
-      if (upsert.error) result.errors.push(upsert.error.message);
-      else result.upserted += 1;
-    }
-
+    const now = new Date().toISOString();
+    const payload = rows.map((row) => ({
+      source_key: row.sourceKey,
+      external_id: row.externalId,
+      title: row.title,
+      description: row.description,
+      organization: row.organization || null,
+      category: row.category || null,
+      format: row.format || null,
+      dataset_url: row.datasetUrl || null,
+      resource_url: row.resourceUrl || null,
+      source_updated_at: row.sourceUpdatedAt,
+      metadata: row.metadata,
+      updated_at: now,
+    }));
+    result.upserted = await chunkedUpsert(supabase, "public_datasets", payload, { onConflict: "source_key,external_id", chunkSize: 500 });
     result.skipped = Math.max(0, result.fetched - result.upserted);
+
     await supabase.from("sync_logs").update({
-      status: result.errors.length ? "partial" : "success",
+      status: "success",
       completed_at: new Date().toISOString(),
       fetched_count: result.fetched,
       upserted_count: result.upserted,
-      error_count: result.errors.length,
-      error_message: result.errors.slice(0, 10).join("\n") || null,
+      error_count: 0,
+      error_message: null,
     }).eq("id", logInsert.data.id);
   } catch (error) {
     result.errors.push(error instanceof Error ? error.message : String(error));
@@ -272,8 +271,9 @@ async function syncCatalog(
 }
 
 export async function syncFreePublicDatasetCatalogs(supabase: SupabaseClient): Promise<SyncResult[]> {
-  const results: SyncResult[] = [];
-  results.push(await syncCatalog(supabase, "balady-open-data", "بلدي — كتالوج البيانات المفتوحة المجاني", fetchBaladyDatasets));
-  results.push(await syncCatalog(supabase, "saudi-open-data", "البوابة الوطنية للبيانات المفتوحة — بيانات مجانية", fetchSaudiOpenDataDatasets));
-  return results;
+  const [balady, national] = await Promise.all([
+    syncCatalog(supabase, "balady-open-data", "بلدي — كتالوج البيانات المفتوحة المجاني", fetchBaladyDatasets),
+    syncCatalog(supabase, "saudi-open-data", "البوابة الوطنية للبيانات المفتوحة — بيانات مجانية", fetchSaudiOpenDataDatasets),
+  ]);
+  return [balady, national];
 }

@@ -1,6 +1,6 @@
 {
   "name": "etmad-ben-ghai",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -10,10 +10,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.57.4",
     "next": "16.2.10",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "@supabase/supabase-js": "^2.57.4",
+    "recharts": "^3.3.0",
+    "xlsx": "^0.18.5",
     "zod": "^4.1.12"
   },
   "devDependencies": {
@@ -26,5 +28,5 @@
     "tailwindcss": "^4",
     "typescript": "^5"
   },
-  "description": "اعتماد بلس - منصة تحليل المنافسات والترسيات الحكومية السعودية"
+  "description": "رادار المشاريع السعودي - منصة ذكاء سوق المشاريع والمنافسات"
 }

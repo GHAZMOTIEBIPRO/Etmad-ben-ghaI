@@ -25,5 +25,6 @@ export interface DataSourceConnector {
   readonly key: string;
   readonly name: string;
   readonly isLive: boolean;
+  readonly parserVersion?: string;
   fetchTenders(since?: string): Promise<Tender[]>;
 }
