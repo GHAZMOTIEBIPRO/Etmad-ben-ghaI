@@ -43,6 +43,26 @@ const SOURCE_CONFIGS: SourceConfig[] = [
     sector: "خطط مشتريات حكومية مستقبلية",
     minYear: 2025,
   },
+  {
+    key: "zatca-procurement-2026",
+    name: "هيئة الزكاة والضريبة والجمارك — خطة المشتريات 2026",
+    url: "https://zatca.gov.sa/ar/MediaCenter/Elan/Pages/Procurement-and-Tenders-for-the-Fiscal-Year-2026.aspx",
+    entityName: "هيئة الزكاة والضريبة والجمارك",
+    entitySlug: "zatca-procurement",
+    defaultRegion: "المملكة العربية السعودية",
+    sector: "خطط مشتريات حكومية مستقبلية",
+    minYear: 2026,
+  },
+  {
+    key: "rega-procurement-2026",
+    name: "الهيئة العامة للعقار — مشاريع ومشتريات 2026",
+    url: "https://rega.gov.sa/ar/الهيئة/المنافسات-والمشتريات/",
+    entityName: "الهيئة العامة للعقار",
+    entitySlug: "rega-procurement",
+    defaultRegion: "الرياض",
+    sector: "منافسات وخطط مشتريات حكومية",
+    minYear: 2026,
+  },
 ];
 
 function stableHash(input: string): string {
@@ -121,6 +141,8 @@ function activityFromText(text: string): string {
   if (/انشا|بناء|تشييد|construction|building/i.test(text)) return "إنشاءات ومبانٍ";
   if (/ترميم|تاهيل|اعاده تاهيل|renovation|rehabilitation/i.test(text)) return "ترميم وتأهيل";
   if (/طرق|جسور|انفاق|بنيه تحتيه|road|bridge|tunnel|infrastructure/i.test(text)) return "طرق وبنية تحتية";
+  if (/كهرب|شبكات|محولات|كابلات|electrical|power network/i.test(text)) return "أعمال كهربائية وشبكات";
+  if (/مياه|صرف|تصريف|water|sewage|drainage/i.test(text)) return "مياه وتصريف وبنية تحتية";
   if (/تصميم|اشراف|هندس|engineering|design|supervision/i.test(text)) return "خدمات هندسية";
   if (/تقنيه|نظام|منصه|software|technology|cyber/i.test(text)) return "تقنية وأنظمة";
   if (/توريد|supply|procurement/i.test(text)) return "توريد";
@@ -152,7 +174,7 @@ function parseTables(html: string, config: SourceConfig): Tender[] {
       if (!cells.length) continue;
 
       const hasHeaderCell = /<th\b/i.test(rawRow[1]);
-      if (hasHeaderCell || (!headers.length && cells.some((cell) => /اسم|عنوان|مشروع|منافس/i.test(cell)))) {
+      if (hasHeaderCell || (!headers.length && cells.some((cell) => /اسم|عنوان|مشروع|منافس|project/i.test(cell)))) {
         headers = cells.map(normalize);
         continue;
       }
@@ -206,7 +228,7 @@ function parseTables(html: string, config: SourceConfig): Tender[] {
     }
   }
 
-  return [...new Map(rows.map((row) => [row.sourceExternalId, row])).values()].slice(0, 500);
+  return [...new Map(rows.map((row) => [row.sourceExternalId, row])).values()].slice(0, 1000);
 }
 
 export class PublicProcurementPagesConnector implements DataSourceConnector {
