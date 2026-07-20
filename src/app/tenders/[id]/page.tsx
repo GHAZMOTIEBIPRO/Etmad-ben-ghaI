@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { currency, formatDate, statusLabel } from "@/lib/format";
+import { getProjectIntelligence } from "@/lib/project-intelligence";
 import { getTender } from "@/lib/repository";
 
 export const dynamic = "force-dynamic";
@@ -14,8 +15,9 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function TenderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const tender = await getTender(id);
+  const [tender, projects] = await Promise.all([getTender(id), getProjectIntelligence()]);
   if (!tender) notFound();
+  const project = projects.find((item) => item.opportunities.some((opportunity) => opportunity.id === tender.id));
   const fields = [
     ["الرقم المرجعي", tender.competitionNumber], ["الجهة / منصة الطرح", tender.governmentEntityName], ["النشاط", tender.activityName], ["المجال", tender.sector], ["المنطقة", tender.regionName],
     ["قيمة الكراسة", tender.brochurePrice == null ? "—" : currency.format(tender.brochurePrice)], ["القيمة التقديرية", tender.estimatedValue == null ? "—" : currency.format(tender.estimatedValue)],
@@ -24,9 +26,10 @@ export default async function TenderPage({ params }: { params: Promise<{ id: str
   ];
   return (
     <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
-      <Link href="/" className="text-sm font-bold text-emerald-800 hover:underline">← العودة إلى الفرص والمنافسات</Link>
+      <Link href="/tenders" className="text-sm font-bold text-emerald-800 hover:underline">← العودة إلى المنافسات والفرص</Link>
       <div className="mt-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-        <div className="flex flex-col gap-4 border-b border-slate-100 pb-6 sm:flex-row sm:items-start sm:justify-between"><div><div className="text-sm font-extrabold text-emerald-700">{tender.competitionNumber}</div><h1 className="mt-2 text-2xl font-black leading-tight text-slate-950 sm:text-4xl">{tender.name}</h1><p className="mt-4 max-w-3xl leading-8 text-slate-600">{tender.description || "لا يتوفر وصف إضافي في المصدر الحالي."}</p>{tender.sourceUrl ? <a href={tender.sourceUrl} target="_blank" rel="noreferrer" className="mt-4 inline-flex rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-black text-emerald-900">فتح السجل في المصدر الأصلي ↗</a> : null}</div><span className="w-fit rounded-full bg-emerald-100 px-4 py-2 text-sm font-black text-emerald-800">{statusLabel(tender.status)}</span></div>
+        <div className="flex flex-col gap-4 border-b border-slate-100 pb-6 sm:flex-row sm:items-start sm:justify-between"><div><div className="text-sm font-extrabold text-emerald-700">{tender.competitionNumber}</div><h1 className="mt-2 text-2xl font-black leading-tight text-slate-950 sm:text-4xl">{tender.name}</h1><p className="mt-4 max-w-3xl leading-8 text-slate-600">{tender.description || "لا يتوفر وصف إضافي في المصدر الحالي."}</p><div className="mt-4 flex flex-wrap gap-2">{project ? <Link href={`/projects/${project.id}`} className="inline-flex rounded-xl bg-emerald-800 px-4 py-2 text-sm font-black text-white">فتح ملف المشروع 360°</Link> : null}{tender.sourceUrl ? <a href={tender.sourceUrl} target="_blank" rel="noreferrer" className="inline-flex rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-black text-emerald-900">فتح السجل في المصدر الأصلي ↗</a> : null}</div></div><span className="w-fit rounded-full bg-emerald-100 px-4 py-2 text-sm font-black text-emerald-800">{statusLabel(tender.status)}</span></div>
+        {project ? <div className="mt-6 rounded-2xl border border-blue-200 bg-blue-50 p-5"><div className="text-xs font-black text-blue-700">سياق المشروع</div><div className="mt-2 text-lg font-black text-blue-950">{project.name}</div><div className="mt-2 text-sm font-bold text-blue-900">المرحلة: {project.stageLabel} · المنطقة: {project.regionName} · {project.opportunityCount} فرصة مرتبطة · ثقة البيانات {project.confidence}%</div></div> : null}
         <dl className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{fields.map(([label, value]) => <div key={label} className="rounded-2xl bg-slate-50 p-4"><dt className="text-xs font-extrabold text-slate-500">{label}</dt><dd className="mt-2 font-black text-slate-900">{value}</dd></div>)}</dl>
         <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-5"><div className="text-xs font-extrabold text-emerald-700">بيانات الترسية</div>{tender.award ? <Link href={`/companies/${tender.award.companySlug}`} className="mt-2 inline-block text-lg font-black text-emerald-950 hover:underline">{tender.award.companyName}</Link> : <div className="mt-2 font-bold text-slate-600">لا توجد ترسية معلنة لهذا السجل في المصدر الحالي.</div>}</div>
       </div>
