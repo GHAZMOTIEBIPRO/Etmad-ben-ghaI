@@ -1,4 +1,5 @@
 import type { DataSourceConnector } from "@/lib/data-sources/types";
+import { fetchWithPolicy } from "@/lib/http/fetch-with-policy";
 import type { Tender } from "@/lib/types";
 
 const SOURCE_URL = "https://www.swpc.sa/en/developer-qualification-initiative/";
@@ -117,18 +118,20 @@ function mapProject(project: FutureProject): Tender {
 }
 
 async function fetchHtml(url: string): Promise<string> {
-  const response = await fetch(url, {
-    headers: { Accept: "text/html,application/xhtml+xml", "User-Agent": "ConstructionRadar/1.0 (+public-data-indexer)" },
-    next: { revalidate: 3600 },
+  const fetched = await fetchWithPolicy(url, {
+    headers: { Accept: "text/html,application/xhtml+xml" },
+    retries: 3,
+    minIntervalMs: 1_000,
+    timeoutMs: 25_000,
   });
-  if (!response.ok) throw new Error(`SWPC public projects request failed (${response.status})`);
-  return response.text();
+  return fetched.text();
 }
 
 export class SwpcFutureProjectsConnector implements DataSourceConnector {
   readonly key = "swpc-future-projects";
   readonly name = "الشركة السعودية لشراكات المياه — المشاريع المستقبلية";
   readonly isLive = true;
+  readonly parserVersion = "2.0.0";
 
   async fetchTenders(since?: string): Promise<Tender[]> {
     let projects: FutureProject[] = [];
