@@ -25,7 +25,10 @@ const connectorKeysByCatalogName: Record<string, string> = {
   "الشركة السعودية لشراكات المياه — المشاريع المستقبلية": "swpc-future-projects",
 };
 
-const directLiveSources = new Set(["منصة مقاول — دليل المقاولين"]);
+const directLiveSources = new Set([
+  "منصة مقاول — دليل المقاولين",
+  "بلدي — البيانات المفتوحة",
+]);
 
 const stateLabels: Record<OperationalState, string> = {
   healthy: "متصل ويزامن",
