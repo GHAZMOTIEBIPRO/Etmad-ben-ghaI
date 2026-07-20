@@ -5,6 +5,7 @@ import {
   type SourcePriority,
 } from "@/lib/source-catalog";
 import { getSourceOperations, type OperationalState, type SourceOperation } from "@/lib/source-operations";
+import { getBaladyOpenDataSignals } from "@/lib/balady-open-data";
 
 const accessClass: Record<SourceAccess, string> = {
   live: "bg-emerald-100 text-emerald-900",
@@ -49,7 +50,7 @@ function formatDate(value: string | null): string {
 }
 
 export default async function SourcesPage() {
-  const operations = await getSourceOperations();
+  const [operations, baladySignals] = await Promise.all([getSourceOperations(), getBaladyOpenDataSignals()]);
   const grouped = groupSources(operations);
   const connected = operations.filter((source) => source.connectorKey || source.operationalState === "direct").length;
   const healthy = operations.filter((source) => source.operationalState === "healthy" || source.operationalState === "direct").length;
@@ -73,8 +74,39 @@ export default async function SourcesPage() {
       </div>
 
       <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm leading-7 text-emerald-950">
-        <span className="font-black">الموصلات الأساسية المفعلة في الكود:</span> منصة مقاول للمشاريع، المركز الوطني للتخصيص لفرص PPP، والشركة السعودية لشراكات المياه للمشاريع المستقبلية. اعتماد يُفعّل تلقائيًا عند اكتمال إعداد واجهته الرسمية.
+        <span className="font-black">الموصلات الأساسية المفعلة في الكود:</span> منصة مقاول للمشاريع، المركز الوطني للتخصيص لفرص PPP، والشركة السعودية لشراكات المياه للمشاريع المستقبلية. كما تتم قراءة كتالوج بيانات بلدي المفتوحة مباشرة. اعتماد يُفعّل تلقائيًا عند اكتمال إعداد واجهته الرسمية.
       </div>
+
+      {baladySignals.length > 0 && (
+        <section className="mt-9 rounded-2xl border border-teal-200 bg-teal-50 p-5">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <div className="text-xs font-black text-teal-700">قراءة مباشرة من API بلدي</div>
+              <h2 className="mt-1 text-xl font-black text-slate-950">أحدث مجموعات البيانات ذات الصلة بالمقاولات والبناء</h2>
+            </div>
+            <span className="text-xs font-bold text-teal-800">{baladySignals.length.toLocaleString("ar-SA")} مجموعة ذات صلة</span>
+          </div>
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            {baladySignals.map((item) => (
+              <article key={item.id} className="rounded-xl border border-teal-100 bg-white p-4">
+                <h3 className="font-black text-slate-900">{item.title}</h3>
+                <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
+                  {item.year && <span>السنة: {item.year}</span>}
+                  {item.category && <span>• {item.category}</span>}
+                  {item.changed && <span>• تحديث: {item.changed}</span>}
+                </div>
+                {item.files.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {item.files.map((file, index) => (
+                      <a key={file} href={file} target="_blank" rel="noreferrer" className="rounded-lg bg-teal-100 px-2.5 py-1 text-xs font-black text-teal-900 hover:underline">فتح ملف {index + 1} ↗</a>
+                    ))}
+                  </div>
+                )}
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="mt-9 space-y-9">
         {grouped.map(([category, sources]) => (
