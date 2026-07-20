@@ -1,0 +1,17 @@
+name: Typecheck Debug
+
+on:
+  pull_request:
+
+jobs:
+  debug-typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm install --silent
+      - name: Typecheck with concise diagnostics
+        run: |
+          npm run typecheck > /tmp/typecheck.log 2>&1 || {
+            tail -n 80 /tmp/typecheck.log
+            exit 1
+          }
