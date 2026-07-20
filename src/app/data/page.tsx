@@ -32,6 +32,7 @@ function formatDate(value: string | null): string {
 function sourceLabel(sourceKey: string): string {
   if (sourceKey === "balady-open-data") return "بلدي";
   if (sourceKey === "riyadh-municipality-open-data") return "أمانة الرياض";
+  if (sourceKey === "official-procurement-files") return "ملفات مشتريات رسمية";
   return "البيانات الوطنية";
 }
 
@@ -83,7 +84,7 @@ export default async function PublicDataPage({ searchParams }: { searchParams: S
         <div className="max-w-4xl">
           <div className="text-xs font-black text-emerald-700">بيانات مجانية 100%</div>
           <h1 className="mt-2 text-3xl font-black sm:text-4xl">البيانات المفتوحة</h1>
-          <p className="mt-3 leading-7 text-slate-600">مجموعات بيانات حكومية مجانية يجمعها الرادار من الواجهات والبوابات المفتوحة، وتبقى منفصلة عن المنافسات حتى لا نخلط بيانات السوق بالفرص التعاقدية.</p>
+          <p className="mt-3 leading-7 text-slate-600">مجموعات بيانات حكومية مجانية وملفات خطط مشتريات رسمية يجمعها الرادار من الواجهات والبوابات والصفحات المفتوحة، وتبقى منفصلة عن المنافسات حتى لا نخلط بيانات السوق بالفرص التعاقدية.</p>
         </div>
 
         <form className="mt-6 grid gap-3 md:grid-cols-[1fr_240px_auto]">
@@ -92,6 +93,7 @@ export default async function PublicDataPage({ searchParams }: { searchParams: S
             <option value="">كل المصادر</option>
             <option value="balady-open-data">بلدي</option>
             <option value="riyadh-municipality-open-data">أمانة الرياض</option>
+            <option value="official-procurement-files">ملفات خطط المشتريات الرسمية</option>
             <option value="saudi-open-data">البوابة الوطنية للبيانات المفتوحة</option>
           </select>
           <button className="h-12 rounded-xl bg-emerald-800 px-6 text-sm font-black text-white">بحث</button>

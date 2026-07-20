@@ -64,6 +64,15 @@ const extraOperationalSources: SourceCatalogItem[] = [
     url: "https://www.alriyadh.gov.sa/ar/data-sets/competitions",
     description: "يرصد تلقائيًا مجموعات بيانات أمانة الرياض للمنافسات والعقود الاستثمارية لعامي 2025 و2026 ويحفظ روابط ملفات CSV/XLSX/JSON/XML المنشورة للعامة.",
   },
+  {
+    name: "ملفات خطط المشتريات الرسمية المجانية",
+    category: "خطط مشتريات وملفات حكومية",
+    access: "live",
+    priority: "high",
+    signals: ["PDF", "XLSX", "CSV", "خطط مشتريات 2026", "ملفات رسمية", "أكاديمية مهد", "هيئة المواصفات", "هيئة العقار", "هيئة الزكاة والضريبة والجمارك"],
+    url: "https://mahd.gov.sa/competitions-and-purchases",
+    description: "ماسح مجاني يكتشف ملفات خطط المشتريات والمنافسات المنشورة للعامة على صفحات الجهات الرسمية ويحفظ رابط الملف ومصدره دون الحاجة إلى API مدفوع.",
+  },
 ];
 
 const operationalCatalog = [
@@ -82,9 +91,10 @@ const connectorKeysByCatalogName: Record<string, string> = {
   "بلدي — كتالوج البيانات المفتوحة المجاني": "balady-open-data",
   "البوابة الوطنية للبيانات المفتوحة — بيانات مجانية": "saudi-open-data",
   "أمانة الرياض — البيانات المفتوحة للمنافسات والعقود": "riyadh-municipality-open-data",
+  "ملفات خطط المشتريات الرسمية المجانية": "official-procurement-files",
 };
 
-const datasetSourceKeys = new Set(["balady-open-data", "saudi-open-data", "riyadh-municipality-open-data"]);
+const datasetSourceKeys = new Set(["balady-open-data", "saudi-open-data", "riyadh-municipality-open-data", "official-procurement-files"]);
 
 const directLiveSources = new Set([
   "منصة مقاول — دليل المقاولين",
