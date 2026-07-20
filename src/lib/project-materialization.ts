@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { chunkedUpsert } from "@/lib/db/chunked-upsert";
 import type { SyncResult } from "@/lib/data-sources/types";
+import { canonicalEntityName, entityAliasSeedRows } from "@/lib/entity-resolution";
 import { getProjectIntelligence, type ProjectIntelligenceRecord } from "@/lib/project-intelligence";
 
 function normalizeName(value: string): string {
@@ -31,9 +32,10 @@ interface ResolvedProject {
 }
 
 async function resolveProjectId(supabase: SupabaseClient, project: ProjectIntelligenceRecord): Promise<ResolvedProject> {
+  const canonicalOwner = canonicalEntityName(project.ownerName);
   const rpc = await supabase.rpc("find_project_match", {
     p_name: project.name,
-    p_owner: project.ownerName,
+    p_owner: canonicalOwner,
     p_region: project.regionName,
     p_threshold: 0.74,
   }).limit(1).maybeSingle();
@@ -45,7 +47,6 @@ async function resolveProjectId(supabase: SupabaseClient, project: ProjectIntell
   const candidateId = String((rpc.data as Record<string, unknown>).project_id ?? "");
   const score = Number((rpc.data as Record<string, unknown>).match_score ?? 0);
   if (!candidateId || candidateId === project.id) return { project, resolvedId: project.id, matchScore: score };
-
   if (score >= 0.9) return { project, resolvedId: candidateId, matchScore: score };
 
   if (score >= 0.75) {
@@ -56,7 +57,8 @@ async function resolveProjectId(supabase: SupabaseClient, project: ProjectIntell
       status: "pending",
       reasons: {
         name: project.name,
-        owner: project.ownerName,
+        owner: canonicalOwner,
+        originalOwner: project.ownerName,
         region: project.regionName,
       },
     }, { onConflict: "incoming_project_id,candidate_project_id" });
@@ -119,6 +121,13 @@ export async function syncProjectIntelligence(supabase: SupabaseClient): Promise
     return result;
   }
 
+  try {
+    await chunkedUpsert(supabase, "entity_aliases", entityAliasSeedRows(), { onConflict: "entity_type,normalized_alias", chunkSize: 200 });
+  } catch (error) {
+    const typed = error as { code?: string; message?: string };
+    if (!isMissingRelation(typed)) result.errors.push(typed.message ?? String(error));
+  }
+
   const sourceUpsert = await supabase
     .from("data_sources")
     .upsert({ key: "project-intelligence", name: "محرك توحيد المشاريع", is_active: true }, { onConflict: "key" })
@@ -146,24 +155,27 @@ export async function syncProjectIntelligence(supabase: SupabaseClient): Promise
 
     if (resolvedProjects.length) {
       const now = new Date().toISOString();
-      const projectRows = resolvedProjects.map(({ project, resolvedId }) => ({
-        id: resolvedId,
-        name: project.name,
-        normalized_name: normalizeName(project.name),
-        owner_name: project.ownerName || null,
-        normalized_owner: normalizeName(project.ownerName || ""),
-        region_name: project.regionName || null,
-        sector: project.sector || null,
-        activity_name: project.activityName || null,
-        stage: project.stage,
-        estimated_value: project.estimatedValue,
-        award_value: project.awardValue,
-        confidence: project.confidence,
-        fit_score: project.fitScore,
-        first_seen_at: project.firstSeen || null,
-        last_seen_at: project.latestUpdate || null,
-        updated_at: now,
-      }));
+      const projectRows = resolvedProjects.map(({ project, resolvedId }) => {
+        const canonicalOwner = canonicalEntityName(project.ownerName || "");
+        return {
+          id: resolvedId,
+          name: project.name,
+          normalized_name: normalizeName(project.name),
+          owner_name: canonicalOwner || null,
+          normalized_owner: normalizeName(canonicalOwner),
+          region_name: project.regionName || null,
+          sector: project.sector || null,
+          activity_name: project.activityName || null,
+          stage: project.stage,
+          estimated_value: project.estimatedValue,
+          award_value: project.awardValue,
+          confidence: project.confidence,
+          fit_score: project.fitScore,
+          first_seen_at: project.firstSeen || null,
+          last_seen_at: project.latestUpdate || null,
+          updated_at: now,
+        };
+      });
       await chunkedUpsert(supabase, "projects", projectRows, { onConflict: "id", chunkSize: 500 });
 
       const sourceRows = resolvedProjects.flatMap(({ project, resolvedId }) => project.sourceRefs.map((source) => ({
@@ -179,8 +191,8 @@ export async function syncProjectIntelligence(supabase: SupabaseClient): Promise
       const partyRows = resolvedProjects.flatMap(({ project, resolvedId }) => project.parties.map((party) => ({
         project_id: resolvedId,
         role: party.role,
-        party_name: party.name,
-        metadata: {},
+        party_name: canonicalEntityName(party.name),
+        metadata: { originalName: party.name },
       })));
       if (partyRows.length) await chunkedUpsert(supabase, "project_parties", partyRows, { onConflict: "project_id,role,party_name", chunkSize: 500 });
 
@@ -197,7 +209,7 @@ export async function syncProjectIntelligence(supabase: SupabaseClient): Promise
         award_value: opportunity.award?.amount ?? null,
         metadata: {
           competitionNumber: opportunity.competitionNumber,
-          governmentEntity: opportunity.governmentEntityName,
+          governmentEntity: canonicalEntityName(opportunity.governmentEntityName),
           activity: opportunity.activityName,
         },
       })));
@@ -215,12 +227,12 @@ export async function syncProjectIntelligence(supabase: SupabaseClient): Promise
 
     result.skipped = Math.max(0, result.fetched - result.upserted);
     await supabase.from("sync_logs").update({
-      status: "success",
+      status: result.errors.length ? "partial" : "success",
       completed_at: new Date().toISOString(),
       fetched_count: result.fetched,
       upserted_count: result.upserted,
-      error_count: 0,
-      error_message: null,
+      error_count: result.errors.length,
+      error_message: result.errors.slice(0, 10).join("\n") || null,
     }).eq("id", logInsert.data.id);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -231,7 +243,7 @@ export async function syncProjectIntelligence(supabase: SupabaseClient): Promise
       fetched_count: result.fetched,
       upserted_count: result.upserted,
       error_count: result.errors.length,
-      error_message: message,
+      error_message: result.errors.slice(0, 10).join("\n"),
     }).eq("id", logInsert.data.id);
   }
 
