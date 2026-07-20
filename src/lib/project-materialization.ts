@@ -18,16 +18,16 @@ function isMissingRelation(error: { code?: string; message?: string } | null): b
   return error.code === "42P01" || error.code === "PGRST205" || /relation .* does not exist|could not find the table/i.test(error.message ?? "");
 }
 
-async function chunkedUpsert<T extends Record<string, unknown>>(
+async function chunkedUpsert(
   supabase: SupabaseClient,
   table: string,
-  rows: T[],
+  rows: Array<Record<string, unknown>>,
   onConflict: string,
   chunkSize = 400,
 ): Promise<void> {
   for (let index = 0; index < rows.length; index += chunkSize) {
     const chunk = rows.slice(index, index + chunkSize);
-    const response = await supabase.from(table).upsert(chunk, { onConflict });
+    const response = await supabase.from(table).upsert(chunk as never[], { onConflict });
     if (response.error) throw response.error;
   }
 }
