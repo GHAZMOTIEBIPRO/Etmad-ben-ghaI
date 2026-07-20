@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { filterProjects, getProjectIntelligence, type ProjectFilters, type ProjectStage } from "@/lib/project-intelligence";
+import type { ProjectFilters, ProjectStage } from "@/lib/project-intelligence";
+import { listProjectsPage } from "@/lib/project-repository";
 
 export const dynamic = "force-dynamic";
 
@@ -22,14 +23,12 @@ export async function GET(request: NextRequest) {
     maxValue: numberParam(params.get("maxValue")),
   };
 
-  const projects = filterProjects(await getProjectIntelligence(), filters);
-  const start = (page - 1) * pageSize;
-
+  const result = await listProjectsPage(filters, page, pageSize);
   return NextResponse.json({
-    items: projects.slice(start, start + pageSize),
-    page,
-    pageSize,
-    total: projects.length,
-    totalPages: Math.max(1, Math.ceil(projects.length / pageSize)),
+    items: result.items,
+    page: result.page,
+    pageSize: result.pageSize,
+    total: result.total,
+    totalPages: result.totalPages,
   });
 }
