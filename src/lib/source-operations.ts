@@ -33,8 +33,8 @@ const extraOperationalSources: SourceCatalogItem[] = [
     category: "منافسات وخطط مشتريات حكومية",
     access: "live",
     priority: "high",
-    signals: ["بلدي", "هيئة المواصفات", "وزارة الصحة", "خطط مشتريات", "منافسات عامة", "مشاريع مستقبلية"],
-    url: "https://www.balady.gov.sa/ar/node/10981",
+    signals: ["بلدي", "هيئة المواصفات", "وزارة الصحة", "هيئة الزكاة والضريبة والجمارك", "الهيئة العامة للعقار", "خطط مشتريات", "مشاريع 2026"],
+    url: "https://zatca.gov.sa/ar/MediaCenter/Elan/Pages/Procurement-and-Tenders-for-the-Fiscal-Year-2026.aspx",
     description: "موصل مجاني يقرأ الجداول المنشورة للعامة مباشرة من صفحات الجهات الحكومية، ويجمع المنافسات الحالية وخطط الأعمال والمشتريات دون استخدام API مدفوع.",
   },
   {
@@ -55,6 +55,15 @@ const extraOperationalSources: SourceCatalogItem[] = [
     url: "https://open.data.gov.sa/",
     description: "موصل بحث مجاني للبوابة الوطنية للبيانات المفتوحة يلتقط مجموعات البيانات المرتبطة بالمقاولات والمنافسات والبناء والإسكان والعقار والبنية التحتية ويخزن بياناتها الوصفية وروابط الموارد المتاحة.",
   },
+  {
+    name: "أمانة الرياض — البيانات المفتوحة للمنافسات والعقود",
+    category: "بيانات الرياض المفتوحة",
+    access: "live",
+    priority: "high",
+    signals: ["منافسات استثمارية", "عقود استثمارية", "CSV", "XLSX", "JSON", "XML", "الرياض"],
+    url: "https://www.alriyadh.gov.sa/ar/data-sets/competitions",
+    description: "يرصد تلقائيًا مجموعات بيانات أمانة الرياض للمنافسات والعقود الاستثمارية لعامي 2025 و2026 ويحفظ روابط ملفات CSV/XLSX/JSON/XML المنشورة للعامة.",
+  },
 ];
 
 const operationalCatalog = [
@@ -72,9 +81,10 @@ const connectorKeysByCatalogName: Record<string, string> = {
   "صفحات المنافسات والمشتريات الحكومية المجانية": "public-procurement-pages",
   "بلدي — كتالوج البيانات المفتوحة المجاني": "balady-open-data",
   "البوابة الوطنية للبيانات المفتوحة — بيانات مجانية": "saudi-open-data",
+  "أمانة الرياض — البيانات المفتوحة للمنافسات والعقود": "riyadh-municipality-open-data",
 };
 
-const datasetSourceKeys = new Set(["balady-open-data", "saudi-open-data"]);
+const datasetSourceKeys = new Set(["balady-open-data", "saudi-open-data", "riyadh-municipality-open-data"]);
 
 const directLiveSources = new Set([
   "منصة مقاول — دليل المقاولين",
