@@ -1,0 +1,56 @@
+name: Verify Production Deployment
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-production
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      PRODUCTION_URL: https://etimad-plus.vercel.app
+    steps:
+      - name: Wait for the merged commit to reach production
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="$GITHUB_SHA"
+          echo "Expected production commit: $expected"
+
+          for attempt in $(seq 1 30); do
+            body="$(curl -fsS --max-time 15 "$PRODUCTION_URL/api/health/version" 2>/dev/null || true)"
+            if [ -n "$body" ]; then
+              actual="$(printf '%s' "$body" | jq -r '.buildSha // empty' 2>/dev/null || true)"
+              service="$(printf '%s' "$body" | jq -r '.service // empty' 2>/dev/null || true)"
+              echo "Attempt $attempt: service=$service build=$actual"
+              if [ "$service" = "saudi-projects-radar" ] && [ "$actual" = "$expected" ]; then
+                echo "Production is serving the expected Saudi Projects Radar build."
+                exit 0
+              fi
+            else
+              echo "Attempt $attempt: health endpoint not available yet"
+            fi
+            sleep 10
+          done
+
+          echo "::error::Production domain is not serving commit $expected. Check the Vercel project/domain Git integration."
+          exit 1
+
+      - name: Verify core intelligence routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          for route in /market /projects /data /sources; do
+            status="$(curl -L -sS -o /dev/null -w '%{http_code}' --max-time 20 "$PRODUCTION_URL$route")"
+            echo "$route -> $status"
+            test "$status" = "200"
+          done

@@ -184,6 +184,7 @@ export async function syncProjectIntelligence(supabase: SupabaseClient): Promise
           award_value: project.awardValue,
           confidence: project.confidence,
           fit_score: project.fitScore,
+          fit_score_breakdown: project.fitReasons,
           first_seen_at: project.firstSeen || null,
           last_seen_at: project.latestUpdate || null,
           updated_at: now,

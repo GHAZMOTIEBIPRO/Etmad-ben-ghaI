@@ -152,8 +152,13 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         <aside className="space-y-5">
           <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6">
             <div className="text-xs font-black text-emerald-700">قراءة تطوير الأعمال</div>
-            <h2 className="mt-2 text-xl font-black text-emerald-950">ملاءمة بن غازي: {project.fitScore}/100</h2>
-            <p className="mt-3 text-sm leading-7 text-emerald-900">درجة أولية مبنية على المنطقة والنشاط والحجم والمهلة المتاحة في الفرص المرتبطة. تستخدم للفرز السريع وليست بديلًا عن مراجعة الكراسة.</p>
+            <h2 className="mt-2 text-xl font-black text-emerald-950">ملاءمة تلقائية: {project.fitScore}/100</h2>
+            <p className="mt-3 text-sm leading-7 text-emerald-900">الدرجة مبنية على أولوية الرياض والشرقية والقصيم، توافق النشاط مع الإنشاءات والبنية التحتية، نطاق القيمة، مرحلة المشروع والمهلة المتاحة.</p>
+            {project.fitReasons.length ? (
+              <ul className="mt-4 space-y-2 text-sm font-bold leading-6 text-emerald-950">
+                {project.fitReasons.map((reason) => <li key={reason} className="rounded-xl bg-white/70 px-3 py-2">✓ {reason}</li>)}
+              </ul>
+            ) : null}
             <Link href="/tenders" className="mt-4 inline-block text-sm font-black text-emerald-950 underline">افتح المنافسات والفرص ←</Link>
           </section>
 
