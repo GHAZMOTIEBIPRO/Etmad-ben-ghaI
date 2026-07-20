@@ -1,4 +1,5 @@
 import type { DataSourceConnector } from "@/lib/data-sources/types";
+import { fetchWithPolicy } from "@/lib/http/fetch-with-policy";
 import type { CompetitionStatus, Tender } from "@/lib/types";
 
 const BASE_URL = "https://muqawil.org";
@@ -31,17 +32,6 @@ function stableHash(input: string): string {
     hash = Math.imul(hash, 16777619);
   }
   return (hash >>> 0).toString(16).padStart(8, "0");
-}
-
-function slugify(value: string): string {
-  const normalized = value
-    .trim()
-    .toLowerCase()
-    .replace(/[\s_]+/g, "-")
-    .replace(/[^\p{L}\p{N}-]+/gu, "")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
-  return normalized || `item-${stableHash(value)}`;
 }
 
 function decodeHtml(value: string): string {
@@ -86,39 +76,25 @@ function toNumber(value: string): number | null {
 function parseProjectCards(html: string): ProjectCard[] {
   const projectAnchor = /<a\b[^>]*href=["'](?:https?:\/\/muqawil\.org)?\/ar\/market\/projects\/([0-9a-f-]{20,})["'][^>]*>([\s\S]*?)<\/a>/gi;
   const anchors = [...html.matchAll(projectAnchor)]
-    .map((match) => ({
-      externalId: match[1],
-      title: textFromHtml(match[2]),
-      index: match.index ?? 0,
-    }))
+    .map((match) => ({ externalId: match[1], title: textFromHtml(match[2]), index: match.index ?? 0 }))
     .filter((item) => item.title && !/^(?:تفاصيل|عرض|المزيد)$/i.test(item.title));
 
-  const uniqueAnchors = anchors.filter(
-    (item, index) => index === 0 || item.externalId !== anchors[index - 1]?.externalId,
-  );
+  const uniqueAnchors = anchors.filter((item, index) => index === 0 || item.externalId !== anchors[index - 1]?.externalId);
 
   return uniqueAnchors
     .map((anchor, index) => {
       const end = uniqueAnchors[index + 1]?.index ?? html.length;
       const blockText = textFromHtml(html.slice(anchor.index, end));
-      const publicationDate = capture(blockText, /تاريخ النشر\s+(\d{4}-\d{2}-\d{2})/);
-      const deliveryDate = capture(blockText, /موعد التسليم\s+(\d{4}-\d{2}-\d{2})/);
-      const location = capture(blockText, /المكان\s+(.+?)\s+النشاط\s+/);
-      const activity = capture(blockText, /النشاط\s+(.+?)(?:\s+\d+\s+يوم متبقي|\s+يوم متبقي|$)/);
-      const views = toNumber(capture(blockText, /المشاهدات\s+([0-9,]+)/));
-      const offers = toNumber(capture(blockText, /عدد العروض\s+([0-9,]+)/));
-      const daysRemaining = toNumber(capture(blockText, /(?:النشاط\s+.+?\s+)?([0-9]+)\s+يوم متبقي/));
-
       return {
         externalId: anchor.externalId,
         title: anchor.title,
-        publicationDate,
-        deliveryDate,
-        location,
-        activity: activity || "مقاولات عامة",
-        views,
-        offers,
-        daysRemaining,
+        publicationDate: capture(blockText, /تاريخ النشر\s+(\d{4}-\d{2}-\d{2})/),
+        deliveryDate: capture(blockText, /موعد التسليم\s+(\d{4}-\d{2}-\d{2})/),
+        location: capture(blockText, /المكان\s+(.+?)\s+النشاط\s+/),
+        activity: capture(blockText, /النشاط\s+(.+?)(?:\s+\d+\s+يوم متبقي|\s+يوم متبقي|$)/) || "مقاولات عامة",
+        views: toNumber(capture(blockText, /المشاهدات\s+([0-9,]+)/)),
+        offers: toNumber(capture(blockText, /عدد العروض\s+([0-9,]+)/)),
+        daysRemaining: toNumber(capture(blockText, /(?:النشاط\s+.+?\s+)?([0-9]+)\s+يوم متبقي/)),
       };
     })
     .filter((item) => item.publicationDate && item.title);
@@ -178,6 +154,7 @@ export class MuqawilProjectsConnector implements DataSourceConnector {
   readonly key = "muqawil-projects";
   readonly name = "منصة مقاول — المشاريع العامة";
   readonly isLive = true;
+  readonly parserVersion = "2.0.0";
   private readonly maxPages: number;
 
   constructor(options: ConnectorOptions = {}) {
@@ -188,16 +165,13 @@ export class MuqawilProjectsConnector implements DataSourceConnector {
     const records = new Map<string, Tender>();
     for (let page = 1; page <= this.maxPages; page += 1) {
       const url = `${BASE_URL}${PROJECTS_PATH}?page=${page}`;
-      const response = await fetch(url, {
-        headers: {
-          Accept: "text/html,application/xhtml+xml",
-          "User-Agent": "ConstructionRadar/1.0 (+public-data-indexer)",
-        },
-        next: { revalidate: 900 },
+      const fetched = await fetchWithPolicy(url, {
+        headers: { Accept: "text/html,application/xhtml+xml" },
+        retries: 3,
+        minIntervalMs: 650,
+        timeoutMs: 20_000,
       });
-      if (!response.ok) throw new Error(`Muqawil projects request failed (${response.status}) for page ${page}`);
-      const html = await response.text();
-      const cards = parseProjectCards(html);
+      const cards = parseProjectCards(fetched.text());
       if (!cards.length) break;
       for (const card of cards) {
         if (since && card.publicationDate < since.slice(0, 10)) continue;
