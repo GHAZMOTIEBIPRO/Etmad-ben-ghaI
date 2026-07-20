@@ -2,6 +2,8 @@ import type { DataSourceConnector } from "@/lib/data-sources/types";
 import { EtimadOpenDataConnector } from "@/lib/data-sources/etimad-open-data-connector";
 import { MockDataConnector } from "@/lib/data-sources/mock-connector";
 import { MuqawilProjectsConnector } from "@/lib/data-sources/muqawil-projects-connector";
+import { NcpPppConnector } from "@/lib/data-sources/ncp-ppp-connector";
+import { SwpcFutureProjectsConnector } from "@/lib/data-sources/swpc-future-projects-connector";
 
 function etimadConfigured(): boolean {
   return Boolean(
@@ -11,17 +13,19 @@ function etimadConfigured(): boolean {
 }
 
 export function getDataConnectors(): DataSourceConnector[] {
-  const raw = process.env.DATA_SOURCES ?? process.env.DATA_SOURCE ?? "muqawil-projects";
-  const keys = [...new Set(raw.split(",").map((value) => value.trim()).filter(Boolean))];
+  const raw = process.env.DATA_SOURCES ?? process.env.DATA_SOURCE ?? "";
+  const configuredKeys = raw.split(",").map((value) => value.trim()).filter(Boolean);
+  const keys = [...new Set(["muqawil-projects", "ncp-ppp", "swpc-future-projects", ...configuredKeys])];
   const connectors: DataSourceConnector[] = [];
 
   for (const key of keys) {
     if (key === "muqawil-projects") connectors.push(new MuqawilProjectsConnector());
+    if (key === "ncp-ppp") connectors.push(new NcpPppConnector());
+    if (key === "swpc-future-projects") connectors.push(new SwpcFutureProjectsConnector());
     if (key === "etimad-public" && etimadConfigured()) connectors.push(new EtimadOpenDataConnector());
     if (key === "mock" && process.env.ALLOW_MOCK_DATA === "true") connectors.push(new MockDataConnector());
   }
 
-  if (!connectors.length) connectors.push(new MuqawilProjectsConnector());
   return connectors;
 }
 
