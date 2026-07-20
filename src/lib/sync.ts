@@ -5,6 +5,7 @@ import type { SyncBatchResult, SyncResult } from "@/lib/data-sources/types";
 import { deduplicateOpportunities } from "@/lib/deduplicate-opportunities";
 import { syncFreePublicDatasetCatalogs } from "@/lib/free-public-datasets";
 import { syncRiyadhMunicipalityOpenData } from "@/lib/riyadh-free-data";
+import { syncOfficialProcurementFiles } from "@/lib/official-procurement-file-sync";
 
 export async function runSync(): Promise<SyncBatchResult> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -24,6 +25,7 @@ export async function runSync(): Promise<SyncBatchResult> {
   // are not misrepresented as contractual opportunities.
   results.push(...await syncFreePublicDatasetCatalogs(supabase));
   results.push(await syncRiyadhMunicipalityOpenData(supabase));
+  results.push(await syncOfficialProcurementFiles(supabase));
 
   const completedAt = new Date().toISOString();
   return {
