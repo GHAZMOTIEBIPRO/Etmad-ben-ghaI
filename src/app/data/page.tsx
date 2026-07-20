@@ -29,6 +29,12 @@ function formatDate(value: string | null): string {
   return new Intl.DateTimeFormat("ar-SA", { dateStyle: "medium", timeZone: "Asia/Riyadh" }).format(date);
 }
 
+function sourceLabel(sourceKey: string): string {
+  if (sourceKey === "balady-open-data") return "بلدي";
+  if (sourceKey === "riyadh-municipality-open-data") return "أمانة الرياض";
+  return "البيانات الوطنية";
+}
+
 export default async function PublicDataPage({ searchParams }: { searchParams: SearchParams }) {
   const raw = await searchParams;
   const q = first(raw.q).trim();
@@ -85,6 +91,7 @@ export default async function PublicDataPage({ searchParams }: { searchParams: S
           <select name="source" defaultValue={source} className="h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold outline-none focus:border-emerald-600">
             <option value="">كل المصادر</option>
             <option value="balady-open-data">بلدي</option>
+            <option value="riyadh-municipality-open-data">أمانة الرياض</option>
             <option value="saudi-open-data">البوابة الوطنية للبيانات المفتوحة</option>
           </select>
           <button className="h-12 rounded-xl bg-emerald-800 px-6 text-sm font-black text-white">بحث</button>
@@ -110,7 +117,7 @@ export default async function PublicDataPage({ searchParams }: { searchParams: S
                 <h2 className="font-black leading-7 text-slate-950">{row.title}</h2>
                 <div className="mt-1 text-xs font-bold text-slate-400">{row.organization || "جهة حكومية"}</div>
               </div>
-              <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-900">{row.source_key === "balady-open-data" ? "بلدي" : "البيانات الوطنية"}</span>
+              <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-900">{sourceLabel(row.source_key)}</span>
             </div>
             {row.description ? <p className="mt-3 line-clamp-3 text-sm leading-7 text-slate-600">{row.description}</p> : null}
             <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold text-slate-500">
