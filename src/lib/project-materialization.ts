@@ -18,6 +18,20 @@ function isMissingRelation(error: { code?: string; message?: string } | null): b
   return error.code === "42P01" || error.code === "PGRST205" || /relation .* does not exist|could not find the table/i.test(error.message ?? "");
 }
 
+async function chunkedUpsert<T extends Record<string, unknown>>(
+  supabase: SupabaseClient,
+  table: string,
+  rows: T[],
+  onConflict: string,
+  chunkSize = 400,
+): Promise<void> {
+  for (let index = 0; index < rows.length; index += chunkSize) {
+    const chunk = rows.slice(index, index + chunkSize);
+    const response = await supabase.from(table).upsert(chunk, { onConflict });
+    if (response.error) throw response.error;
+  }
+}
+
 export async function syncProjectIntelligence(supabase: SupabaseClient): Promise<SyncResult> {
   const result: SyncResult = { source: "project-intelligence", fetched: 0, upserted: 0, skipped: 0, errors: [] };
   const startedAt = new Date().toISOString();
@@ -57,6 +71,7 @@ export async function syncProjectIntelligence(supabase: SupabaseClient): Promise
     result.fetched = projects.length;
 
     if (projects.length) {
+      const now = new Date().toISOString();
       const projectRows = projects.map((project) => ({
         id: project.id,
         name: project.name,
@@ -72,23 +87,19 @@ export async function syncProjectIntelligence(supabase: SupabaseClient): Promise
         fit_score: project.fitScore,
         first_seen_at: project.firstSeen || null,
         last_seen_at: project.latestUpdate || null,
-        updated_at: new Date().toISOString(),
+        updated_at: now,
       }));
-      const projectUpsert = await supabase.from("projects").upsert(projectRows, { onConflict: "id" });
-      if (projectUpsert.error) throw projectUpsert.error;
+      await chunkedUpsert(supabase, "projects", projectRows, "id");
 
       const sourceRows = projects.flatMap((project) => project.sourceRefs.map((source) => ({
         project_id: project.id,
         source_name: source.label,
         source_external_id: source.externalId,
         source_url: source.url,
-        last_seen_at: source.lastUpdated || new Date().toISOString(),
+        last_seen_at: source.lastUpdated || now,
         metadata: {},
       })));
-      if (sourceRows.length) {
-        const sourceResult = await supabase.from("project_sources").upsert(sourceRows, { onConflict: "project_id,source_url" });
-        if (sourceResult.error) throw sourceResult.error;
-      }
+      if (sourceRows.length) await chunkedUpsert(supabase, "project_sources", sourceRows, "project_id,source_url");
 
       const partyRows = projects.flatMap((project) => project.parties.map((party) => ({
         project_id: project.id,
@@ -96,10 +107,7 @@ export async function syncProjectIntelligence(supabase: SupabaseClient): Promise
         party_name: party.name,
         metadata: {},
       })));
-      if (partyRows.length) {
-        const partyResult = await supabase.from("project_parties").upsert(partyRows, { onConflict: "project_id,role,party_name" });
-        if (partyResult.error) throw partyResult.error;
-      }
+      if (partyRows.length) await chunkedUpsert(supabase, "project_parties", partyRows, "project_id,role,party_name");
 
       const opportunityRows = projects.flatMap((project) => project.opportunities.map((opportunity) => ({
         project_id: project.id,
@@ -117,10 +125,7 @@ export async function syncProjectIntelligence(supabase: SupabaseClient): Promise
           activity: opportunity.activityName,
         },
       })));
-      if (opportunityRows.length) {
-        const opportunityResult = await supabase.from("project_opportunities").upsert(opportunityRows, { onConflict: "project_id,opportunity_external_id" });
-        if (opportunityResult.error) throw opportunityResult.error;
-      }
+      if (opportunityRows.length) await chunkedUpsert(supabase, "project_opportunities", opportunityRows, "project_id,opportunity_external_id");
 
       result.upserted = projects.length;
     }
