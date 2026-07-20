@@ -1,3 +1,5 @@
+create extension if not exists pg_trgm;
+
 create table if not exists public.public_datasets (
   id uuid primary key default gen_random_uuid(),
   source_key text not null,
