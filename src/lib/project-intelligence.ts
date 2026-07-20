@@ -47,6 +47,7 @@ export interface ProjectIntelligenceRecord {
   opportunities: Tender[];
   fitScore: number;
   fitLabel: string;
+  fitReasons: string[];
   confidence: number;
 }
 
@@ -185,7 +186,7 @@ function buildProjects(tenders: Tender[]): ProjectIntelligenceRecord[] {
     ];
     const uniqueParties = [...new Map(parties.map((party) => [`${party.role}:${party.name}`, party])).values()];
     const fitResults = ordered.map(scoreOpportunity).sort((a, b) => b.score - a.score);
-    const bestFit = fitResults[0] ?? { score: 0, label: "ضعيفة" };
+    const bestFit = fitResults[0] ?? { score: 0, label: "ضعيفة", reasons: [] };
     const estimatedValues = ordered.map((item) => item.estimatedValue).filter((value): value is number => value != null && value > 0);
     const awardValues = ordered.map((item) => item.award?.amount).filter((value): value is number => value != null && value > 0);
     const firstSeen = ordered.map((item) => item.publicationDate).filter(Boolean).sort()[0] ?? lead.publicationDate;
@@ -211,6 +212,7 @@ function buildProjects(tenders: Tender[]): ProjectIntelligenceRecord[] {
       opportunities: ordered,
       fitScore: bestFit.score,
       fitLabel: bestFit.label,
+      fitReasons: bestFit.reasons,
       confidence,
     };
   }).sort((a, b) => b.latestUpdate.localeCompare(a.latestUpdate));
