@@ -13,7 +13,7 @@ export async function chunkedUpsert<T extends Record<string, unknown>>(
   for (let index = 0; index < rows.length; index += chunkSize) {
     const chunk = rows.slice(index, index + chunkSize);
     const { error } = await supabase.from(table).upsert(
-      chunk,
+      chunk as never[],
       options.onConflict ? { onConflict: options.onConflict } : undefined,
     );
     if (error) throw error;
