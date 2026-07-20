@@ -27,14 +27,14 @@ export const sourceCatalog: SourceCatalogItem[] = [
     name: "اعتماد — البيانات المفتوحة",
     category: "منافسات وترسيات حكومية",
     access: "configured",
-    url: "https://portal.etimad.sa/ar-sa/services/servicedetails?ServiceGuid=0c95a1ee-22b4-4cb2-b8f0-8b5dca89f17e",
+    url: "https://portal.etimad.sa/ar-SA/ecollaboration/IndexOpenDataRequest",
     description: "المصدر الرسمي لبيانات المنافسات المفتوحة. موصل API موجود، ويُفعّل عند توفر BASE_URL وgroupId الرسميين.",
   },
   {
     name: "اعتماد — المنافسات المستقبلية",
     category: "خط أنابيب حكومي",
     access: "public",
-    url: "https://portal.etimad.sa/",
+    url: "https://portal.etimad.sa/ar-sa/services/servicedetails?ServiceGuid=c0274fde-bef1-4844-a65c-f2e8f1efb5ab",
     description: "خدمة رسمية لاستعراض المنافسات المستقبلية للجهات الحكومية ومتابعة الفرص قبل الطرح.",
   },
   {
