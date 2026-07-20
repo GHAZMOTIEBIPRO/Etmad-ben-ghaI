@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { chunkedUpsert } from "@/lib/db/chunked-upsert";
 import type { SyncResult } from "@/lib/data-sources/types";
 import { fetchWithPolicy } from "@/lib/http/fetch-with-policy";
 import { inferOpenDataFormat, normalizeOpenDataRow, parseOpenDataBuffer } from "@/lib/ingestion/open-data-parser";
@@ -14,17 +15,24 @@ function hashJson(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
-async function chunkedUpsert(supabase: SupabaseClient, rows: Record<string, unknown>[], size = 500): Promise<void> {
-  for (let index = 0; index < rows.length; index += size) {
-    const { error } = await supabase
-      .from("public_dataset_rows")
-      .upsert(rows.slice(index, index + size), { onConflict: "source_key,dataset_external_id,content_hash" });
-    if (error) throw error;
-  }
+function isMissingRelation(error: { code?: string; message?: string } | null | undefined): boolean {
+  if (!error) return false;
+  return error.code === "42P01" || error.code === "PGRST205" || /does not exist|could not find the table/i.test(error.message ?? "");
+}
+
+function datasetKey(sourceKey: string, externalId: string): string {
+  return `${sourceKey}:${externalId}`;
 }
 
 export async function syncPublicDatasetResources(supabase: SupabaseClient): Promise<SyncResult> {
   const result: SyncResult = { source: "public-dataset-resources", fetched: 0, upserted: 0, skipped: 0, errors: [] };
+  const availability = await supabase.from("public_dataset_rows").select("id", { count: "exact", head: true });
+  if (isMissingRelation(availability.error)) return result;
+  if (availability.error) {
+    result.errors.push(availability.error.message);
+    return result;
+  }
+
   const sourceName = "محرك استيراد ملفات البيانات المفتوحة CSV/XLSX/JSON";
   const source = await supabase.from("data_sources")
     .upsert({ key: result.source, name: sourceName, is_active: true }, { onConflict: "key" })
@@ -45,27 +53,50 @@ export async function syncPublicDatasetResources(supabase: SupabaseClient): Prom
   }
 
   try {
-    const datasetLimit = boundedEnv("OPEN_DATA_RESOURCE_INGEST_LIMIT", 30, 1, 200);
-    const rowLimit = boundedEnv("OPEN_DATA_RESOURCE_ROW_LIMIT", 5_000, 100, 50_000);
-    const { data: datasets, error } = await supabase
-      .from("public_datasets")
-      .select("source_key,external_id,title,format,resource_url,source_updated_at,updated_at")
-      .not("resource_url", "is", null)
-      .order("source_updated_at", { ascending: false, nullsFirst: false })
-      .order("updated_at", { ascending: false })
-      .limit(datasetLimit);
-    if (error) throw error;
+    // Keep the daily Vercel cron bounded. Unseen datasets are prioritized so coverage expands over time.
+    const datasetLimit = boundedEnv("OPEN_DATA_RESOURCE_INGEST_LIMIT", 8, 1, 40);
+    const rowLimit = boundedEnv("OPEN_DATA_RESOURCE_ROW_LIMIT", 3_000, 100, 20_000);
+    const candidateLimit = Math.max(datasetLimit * 8, 50);
 
-    for (const dataset of datasets ?? []) {
+    const [datasetsResult, ingestedResult] = await Promise.all([
+      supabase
+        .from("public_datasets")
+        .select("source_key,external_id,title,format,resource_url,source_updated_at,updated_at")
+        .not("resource_url", "is", null)
+        .order("source_updated_at", { ascending: false, nullsFirst: false })
+        .order("updated_at", { ascending: false })
+        .limit(candidateLimit),
+      supabase
+        .from("public_dataset_rows")
+        .select("source_key,dataset_external_id")
+        .limit(10_000),
+    ]);
+    if (datasetsResult.error) throw datasetsResult.error;
+    if (ingestedResult.error) throw ingestedResult.error;
+
+    const ingestedKeys = new Set((ingestedResult.data ?? []).map((row) => datasetKey(String(row.source_key), String(row.dataset_external_id))));
+    const candidates = (datasetsResult.data ?? [])
+      .filter((dataset) => {
+        const url = String(dataset.resource_url ?? "");
+        return inferOpenDataFormat(url, "", String(dataset.format ?? "")) !== "unknown";
+      })
+      .sort((left, right) => {
+        const leftSeen = ingestedKeys.has(datasetKey(String(left.source_key), String(left.external_id)));
+        const rightSeen = ingestedKeys.has(datasetKey(String(right.source_key), String(right.external_id)));
+        return Number(leftSeen) - Number(rightSeen);
+      })
+      .slice(0, datasetLimit);
+
+    for (const dataset of candidates) {
       const resourceUrl = String(dataset.resource_url ?? "");
       if (!resourceUrl) continue;
       try {
         const fetched = await fetchWithPolicy(resourceUrl, {
           headers: { Accept: "application/json,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,*/*" },
           retries: 2,
-          minIntervalMs: 500,
-          timeoutMs: 30_000,
-          maxResponseBytes: 25 * 1024 * 1024,
+          minIntervalMs: 650,
+          timeoutMs: 20_000,
+          maxResponseBytes: 20 * 1024 * 1024,
         });
         const format = inferOpenDataFormat(resourceUrl, fetched.contentType, String(dataset.format ?? ""));
         if (format === "unknown") {
@@ -105,8 +136,10 @@ export async function syncPublicDatasetResources(supabase: SupabaseClient): Prom
           .eq("source_key", sourceKey)
           .eq("dataset_external_id", externalId);
         if (deletion.error) throw deletion.error;
-        await chunkedUpsert(supabase, rows);
-        result.upserted += rows.length;
+        result.upserted += await chunkedUpsert(supabase, "public_dataset_rows", rows, {
+          onConflict: "source_key,dataset_external_id,content_hash",
+          chunkSize: 500,
+        });
       } catch (datasetError) {
         result.errors.push(`${String(dataset.title ?? dataset.external_id)}: ${datasetError instanceof Error ? datasetError.message : String(datasetError)}`);
       }
