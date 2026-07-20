@@ -1,4 +1,4 @@
-import { sourceAccessLabels, sourceCatalog, type SourceAccess } from "@/lib/source-catalog";
+import { sourceAccessLabels, sourceCatalog, type SourceAccess, type SourceCatalogItem } from "@/lib/source-catalog";
 
 const accessClass: Record<SourceAccess, string> = {
   live: "bg-emerald-100 text-emerald-900",
@@ -7,8 +7,16 @@ const accessClass: Record<SourceAccess, string> = {
   configured: "bg-violet-100 text-violet-900",
 };
 
+function groupSources(): Array<[string, SourceCatalogItem[]]> {
+  const grouped = new Map<string, SourceCatalogItem[]>();
+  for (const source of sourceCatalog) {
+    grouped.set(source.category, [...(grouped.get(source.category) ?? []), source]);
+  }
+  return [...grouped.entries()];
+}
+
 export default function SourcesPage() {
-  const grouped = Map.groupBy(sourceCatalog, (source) => source.category);
+  const grouped = groupSources();
   return (
     <main className="mx-auto max-w-[1500px] px-4 py-10 sm:px-6 lg:px-8">
       <div className="max-w-4xl">
@@ -18,14 +26,14 @@ export default function SourcesPage() {
       </div>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Summary label="مصادر متصلة حيًا" value={sourceCatalog.filter((s) => s.access === "live").length} />
-        <Summary label="مصادر عامة مفتوحة" value={sourceCatalog.filter((s) => s.access === "public").length} />
-        <Summary label="بوابات تسجيل وتأهيل" value={sourceCatalog.filter((s) => s.access === "registration").length} />
+        <Summary label="مصادر متصلة حيًا" value={sourceCatalog.filter((source) => source.access === "live").length} />
+        <Summary label="مصادر عامة مفتوحة" value={sourceCatalog.filter((source) => source.access === "public").length} />
+        <Summary label="بوابات تسجيل وتأهيل" value={sourceCatalog.filter((source) => source.access === "registration").length} />
         <Summary label="إجمالي المصادر المرصودة" value={sourceCatalog.length} />
       </div>
 
       <div className="mt-9 space-y-9">
-        {[...grouped.entries()].map(([category, sources]) => (
+        {grouped.map(([category, sources]) => (
           <section key={category}>
             <h2 className="text-xl font-black text-slate-950">{category}</h2>
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
