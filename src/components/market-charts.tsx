@@ -12,6 +12,11 @@ function compact(value: number): string {
   return new Intl.NumberFormat("ar-SA", { notation: "compact", maximumFractionDigits: 1 }).format(value);
 }
 
+function tooltipValue(raw: string | number | readonly (string | number)[] | undefined): string {
+  if (Array.isArray(raw)) return compact(Number(raw[0] ?? 0));
+  return compact(Number(raw ?? 0));
+}
+
 function Chart({ title, items, valueMode = false }: { title: string; items: Bucket[]; valueMode?: boolean }) {
   const data = items.slice(0, 10).map((item) => ({
     name: item.label,
@@ -31,7 +36,7 @@ function Chart({ title, items, valueMode = false }: { title: string; items: Buck
             <CartesianGrid strokeDasharray="3 3" vertical={false} />
             <XAxis dataKey="name" angle={-28} textAnchor="end" height={70} interval={0} tick={{ fontSize: 10 }} />
             <YAxis tickFormatter={compact} tick={{ fontSize: 10 }} width={54} />
-            <Tooltip formatter={(raw: number | string | undefined) => compact(Number(raw ?? 0))} />
+            <Tooltip formatter={(value) => tooltipValue(value)} />
             <Bar dataKey={valueMode ? "value" : "count"} fill="#047857" radius={[6, 6, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
