@@ -48,8 +48,9 @@ async function waitForDomain(url: string, minIntervalMs: number): Promise<void> 
   const domain = new URL(url).hostname;
   const previous = domainQueues.get(domain) ?? Promise.resolve();
   let release!: () => void;
-  const current = new Promise<void>((resolve) => { release = resolve; });
-  domainQueues.set(domain, previous.then(() => current));
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const tail = previous.then(() => gate);
+  domainQueues.set(domain, tail);
 
   await previous;
   try {
@@ -58,7 +59,7 @@ async function waitForDomain(url: string, minIntervalMs: number): Promise<void> 
     lastRequestAt.set(domain, Date.now());
   } finally {
     release();
-    if (domainQueues.get(domain) === current) domainQueues.delete(domain);
+    if (domainQueues.get(domain) === tail) domainQueues.delete(domain);
   }
 }
 
