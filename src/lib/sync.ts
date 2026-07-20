@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { getDataConnectors } from "@/lib/data-sources";
 import type { DataSourceConnector } from "@/lib/data-sources/types";
 import type { SyncBatchResult, SyncResult } from "@/lib/data-sources/types";
+import { deduplicateOpportunities } from "@/lib/deduplicate-opportunities";
 
 export async function runSync(): Promise<SyncBatchResult> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -66,8 +67,10 @@ async function syncConnector(supabase: SupabaseClient, connector: DataSourceConn
   }
 
   try {
-    const incoming = await connector.fetchTenders(lastLog?.completed_at ?? undefined);
-    result.fetched = incoming.length;
+    const fetched = await connector.fetchTenders(lastLog?.completed_at ?? undefined);
+    result.fetched = fetched.length;
+    const incoming = deduplicateOpportunities(fetched);
+    result.skipped += Math.max(0, fetched.length - incoming.length);
 
     for (const tender of incoming) {
       try {
@@ -156,7 +159,7 @@ async function syncConnector(supabase: SupabaseClient, connector: DataSourceConn
       }
     }
 
-    result.skipped = Math.max(0, result.fetched - result.upserted);
+    result.skipped += Math.max(0, incoming.length - result.upserted);
     await supabase.from("sync_logs").update({
       status: result.errors.length ? "partial" : "success",
       completed_at: new Date().toISOString(),

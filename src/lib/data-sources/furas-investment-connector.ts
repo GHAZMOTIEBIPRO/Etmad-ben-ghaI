@@ -3,6 +3,7 @@ import type { Tender } from "@/lib/types";
 
 const BASE_URL = "https://furas.momah.gov.sa";
 const LIST_URL = `${BASE_URL}/en/opportunities-listing/Investment`;
+const FURAS_ENTITY_NAME = "فرص — البوابة الموحدة للاستثمار في المدن السعودية";
 
 function stableHash(input: string): string {
   let hash = 2166136261;
@@ -64,11 +65,19 @@ function activityFromText(text: string): string {
   return "استثمار وتطوير وتشغيل";
 }
 
+function extractCurrentCardLead(beforeReference: string): string {
+  const deadlinePattern = /(?:اخر موعد لتقديم العطاء|آخر موعد لتقديم العطاء|deadline)[^\d]*\d{1,2}\/\d{1,2}\/20\d{2}/gi;
+  const parts = beforeReference.split(deadlinePattern);
+  return (parts.at(-1) ?? beforeReference).trim();
+}
+
 function extractCards(html: string): Tender[] {
   const text = clean(html);
   const referencePattern = /\b\d{2}-\d{2,}-\d{4,}(?:-\d+)?\b/g;
   const refs = [...text.matchAll(referencePattern)];
   const rows: Tender[] = [];
+  const discoveredAt = new Date();
+  const discoveredDate = discoveredAt.toISOString().slice(0, 10);
 
   for (let index = 0; index < refs.length; index += 1) {
     const ref = refs[index];
@@ -77,17 +86,16 @@ function extractCards(html: string): Tender[] {
     const block = text.slice(start, end).trim();
     const competitionNumber = ref[0];
     const refOffset = block.indexOf(competitionNumber);
-    const beforeRef = refOffset >= 0 ? block.slice(0, refOffset).trim() : block;
+    const rawBeforeRef = refOffset >= 0 ? block.slice(0, refOffset).trim() : block;
+    const beforeRef = extractCurrentCardLead(rawBeforeRef);
     const afterRef = refOffset >= 0 ? block.slice(refOffset + competitionNumber.length).trim() : "";
 
-    const titleCandidate = beforeRef
-      .replace(/^.*?(وزارة|أمانة|هيئة|المركز|General Authority|Ministry)\s+/i, "")
-      .trim();
-    const title = titleCandidate.length > 12 ? titleCandidate.slice(-320) : `فرصة استثمارية ${competitionNumber}`;
+    const title = beforeRef.length > 12 ? beforeRef.slice(-320) : `فرصة استثمارية ${competitionNumber}`;
     const context = `${beforeRef} ${afterRef}`.trim();
     const deadline = parseDate(context.match(/(?:اخر موعد لتقديم العطاء|آخر موعد لتقديم العطاء|deadline)[^\d]*(\d{1,2}\/\d{1,2}\/20\d{2})/i)?.[1] ?? "");
     const priceMatch = context.match(/price\s*([\d,.]+)\s*SAR/i) ?? context.match(/(?:سعر|price)[^\d]*([\d,.]+)/i);
-    const brochurePrice = priceMatch ? Number(priceMatch[1].replace(/,/g, "")) : null;
+    const parsedPrice = priceMatch ? Number(priceMatch[1].replace(/,/g, "")) : Number.NaN;
+    const brochurePrice = Number.isFinite(parsedPrice) ? parsedPrice : null;
     const regionName = regionFromText(context);
     const activityName = activityFromText(context);
     const externalId = `furas:${competitionNumber}`;
@@ -96,26 +104,26 @@ function extractCards(html: string): Tender[] {
       id: `furas-${stableHash(externalId)}`,
       competitionNumber,
       name: title,
-      description: context.slice(0, 900),
-      governmentEntityId: `entity-furas-${stableHash(beforeRef.slice(0, 120) || "furas")}`,
-      governmentEntityName: beforeRef.slice(0, 140) || "فرص — البوابة الموحدة للاستثمار في المدن السعودية",
-      governmentEntitySlug: `furas-${stableHash(beforeRef.slice(0, 120) || "furas")}`,
+      description: `تاريخ اكتشاف الرادار: ${discoveredDate}. المصدر العام لا يعرض تاريخ نشر موثوقًا في بطاقة القائمة. ${context.slice(0, 820)}`,
+      governmentEntityId: "entity-furas-public",
+      governmentEntityName: FURAS_ENTITY_NAME,
+      governmentEntitySlug: "furas-public",
       activityId: `activity-${stableHash(activityName)}`,
       activityName,
       sector: "فرص استثمارية بلدية وحكومية",
       regionId: `region-${stableHash(regionName)}`,
       regionName,
-      publicationDate: new Date().toISOString().slice(0, 10),
+      publicationDate: discoveredDate,
       submissionDeadline: deadline,
       bidOpeningDate: "",
-      brochurePrice: Number.isFinite(brochurePrice) ? brochurePrice : null,
+      brochurePrice,
       estimatedValue: null,
-      status: deadline && deadline < new Date().toISOString().slice(0, 10) ? "closed" : "open",
+      status: deadline && deadline < discoveredDate ? "closed" : "open",
       awarded: false,
       award: null,
       sourceUrl: `${LIST_URL}?keys=${encodeURIComponent(competitionNumber)}`,
       sourceExternalId: externalId,
-      updatedAt: new Date().toISOString(),
+      updatedAt: discoveredAt.toISOString(),
     });
   }
 
