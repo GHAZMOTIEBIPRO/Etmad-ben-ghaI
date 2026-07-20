@@ -119,7 +119,7 @@ parallel safe
 as $$
   select trim(regexp_replace(
     translate(lower(coalesce(input, '')), 'أإآةى', 'اااهي'),
-    '[^[:alnum:]\u0600-\u06FF]+', ' ', 'g'
+    '[^[:alnum:]]+', ' ', 'g'
   ));
 $$;
 
