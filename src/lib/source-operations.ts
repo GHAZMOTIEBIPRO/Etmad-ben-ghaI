@@ -18,12 +18,30 @@ export interface SourceOperation extends SourceCatalogItem {
   errorMessage: string | null;
 }
 
+const extraOperationalSources: SourceCatalogItem[] = [
+  {
+    name: "فرص — المنافسات والفرص الاستثمارية",
+    category: "فرص استثمارية حكومية وبلدية",
+    access: "live",
+    priority: "high",
+    signals: ["منافسات استثمارية", "تطوير", "تشغيل وصيانة", "مساحة", "سعر كراسة", "موعد تقديم"],
+    url: "https://furas.momah.gov.sa/en/opportunities-listing/Investment",
+    description: "قائمة عامة للفرص الاستثمارية الحكومية والبلدية. متصلة بالرادار لالتقاط الحقول الظاهرة للعامة دون الدخول إلى حساب المستثمر أو شراء كراسة الشروط.",
+  },
+];
+
+const operationalCatalog = [
+  ...sourceCatalog,
+  ...extraOperationalSources.filter((extra) => !sourceCatalog.some((source) => source.name === extra.name)),
+];
+
 const connectorKeysByCatalogName: Record<string, string> = {
   "منصة مقاول — المشاريع": "muqawil-projects",
   "اعتماد — البيانات المفتوحة": "etimad-public",
   "المركز الوطني للتخصيص — المشاريع والفرص": "ncp-ppp",
   "الشركة السعودية لشراكات المياه — المشاريع المستقبلية": "swpc-future-projects",
   "PIF Private Sector Hub — Explore Opportunities": "pif-opportunities",
+  "فرص — المنافسات والفرص الاستثمارية": "furas-investment",
 };
 
 const directLiveSources = new Set([
@@ -72,7 +90,7 @@ function emptyOperation(source: SourceCatalogItem): SourceOperation {
 export const getSourceOperations = cache(async (): Promise<SourceOperation[]> => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return sourceCatalog.map(emptyOperation);
+  if (!url || !key) return operationalCatalog.map(emptyOperation);
 
   const supabase = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
   try {
@@ -84,7 +102,7 @@ export const getSourceOperations = cache(async (): Promise<SourceOperation[]> =>
         .limit(250),
     ]);
 
-    if (sourceError || logsError) return sourceCatalog.map(emptyOperation);
+    if (sourceError || logsError) return operationalCatalog.map(emptyOperation);
 
     const sourceByKey = new Map((sourceRows ?? []).map((row) => [String(row.key), row]));
     const latestBySourceId = new Map<string, Record<string, unknown>>();
@@ -104,7 +122,7 @@ export const getSourceOperations = cache(async (): Promise<SourceOperation[]> =>
       counts.set(String(row.id), count ?? 0);
     }));
 
-    return sourceCatalog.map((source) => {
+    return operationalCatalog.map((source) => {
       const base = emptyOperation(source);
       if (!base.connectorKey) return base;
       const sourceRow = sourceByKey.get(base.connectorKey);
@@ -139,6 +157,6 @@ export const getSourceOperations = cache(async (): Promise<SourceOperation[]> =>
       };
     });
   } catch {
-    return sourceCatalog.map(emptyOperation);
+    return operationalCatalog.map(emptyOperation);
   }
 });
