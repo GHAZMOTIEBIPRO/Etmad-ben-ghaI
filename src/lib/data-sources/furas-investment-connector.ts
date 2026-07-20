@@ -1,4 +1,5 @@
 import type { DataSourceConnector } from "@/lib/data-sources/types";
+import { fetchWithPolicy } from "@/lib/http/fetch-with-policy";
 import type { Tender } from "@/lib/types";
 
 const BASE_URL = "https://furas.momah.gov.sa";
@@ -134,16 +135,15 @@ export class FurasInvestmentConnector implements DataSourceConnector {
   readonly key = "furas-investment";
   readonly name = "فرص — المنافسات والفرص الاستثمارية";
   readonly isLive = true;
+  readonly parserVersion = "2.0.0";
 
   async fetchTenders(): Promise<Tender[]> {
-    const response = await fetch(LIST_URL, {
-      headers: {
-        Accept: "text/html,application/xhtml+xml",
-        "User-Agent": "ConstructionRadar/1.0 (+public-data-indexer)",
-      },
-      next: { revalidate: 1800 },
+    const fetched = await fetchWithPolicy(LIST_URL, {
+      headers: { Accept: "text/html,application/xhtml+xml" },
+      retries: 3,
+      minIntervalMs: 1_000,
+      timeoutMs: 25_000,
     });
-    if (!response.ok) throw new Error(`Furas public opportunities request failed (${response.status})`);
-    return extractCards(await response.text());
+    return extractCards(fetched.text());
   }
 }
