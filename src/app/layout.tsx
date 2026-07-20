@@ -9,6 +9,8 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const buildSha = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? process.env.GITHUB_SHA?.slice(0, 7) ?? "local";
+
   return (
     <html lang="ar" dir="rtl">
       <body className="min-h-screen text-slate-950 antialiased">
@@ -17,7 +19,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <footer className="mt-16 border-t border-slate-200/80 bg-white/80 backdrop-blur">
           <div className="mx-auto flex max-w-[1500px] flex-col gap-2 px-4 py-8 text-sm leading-7 text-slate-500 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
             <span>رادار المقاولات — منصة مستقلة لذكاء الفرص والمشاريع في السوق السعودي.</span>
-            <span className="text-xs text-slate-400">المصادر العامة والرسمية موضحة داخل مركز تشغيل المصادر.</span>
+            <span className="text-xs text-slate-400">المصادر العامة والرسمية موضحة داخل مركز تشغيل المصادر. الإصدار: {buildSha}</span>
           </div>
         </footer>
         <SignatureMark />
