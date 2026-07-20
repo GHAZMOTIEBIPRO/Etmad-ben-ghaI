@@ -4,6 +4,7 @@ import type { DataSourceConnector } from "@/lib/data-sources/types";
 import type { SyncBatchResult, SyncResult } from "@/lib/data-sources/types";
 import { deduplicateOpportunities } from "@/lib/deduplicate-opportunities";
 import { syncFreePublicDatasetCatalogs } from "@/lib/free-public-datasets";
+import { syncRiyadhMunicipalityOpenData } from "@/lib/riyadh-free-data";
 
 export async function runSync(): Promise<SyncBatchResult> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -22,6 +23,7 @@ export async function runSync(): Promise<SyncBatchResult> {
   // Free government/open-data catalogs are stored separately from tenders so market datasets
   // are not misrepresented as contractual opportunities.
   results.push(...await syncFreePublicDatasetCatalogs(supabase));
+  results.push(await syncRiyadhMunicipalityOpenData(supabase));
 
   const completedAt = new Date().toISOString();
   return {
